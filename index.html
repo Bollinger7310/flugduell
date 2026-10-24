@@ -374,9 +374,10 @@ function legFor(rt,pos){
 }
 let searchCtl=null;
 async function findFlight(exclude,cat){
-  const regions=[...REGIONS].sort(()=>Math.random()-.5).slice(0,5);
+  const regions=[...REGIONS].sort(()=>Math.random()-.5).slice(0,4);
   for(let i=0;i<regions.length;i++){
     if(searchCtl&&searchCtl.cancelled)return null;
+    if(i)await new Promise(r=>setTimeout(r,1500));
     setStatus(i===0?"Radar läuft …":"Suche in einer anderen Region …");
     const [la,lo]=regions[i];
     let data;try{data=await adsbAny(1,la,lo,180);}catch(e){note("Gebiet "+(i+1)+": keine Daten");if(i>=1&&!best)return null;continue;}
@@ -548,7 +549,7 @@ async function poll(){
   }catch(e){}
   polling=false;tick();
 }
-setInterval(poll,6000);setInterval(tick,1000);
+setInterval(poll,10000);setInterval(tick,1000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)poll();});
 
 // ===================== Darstellung =====================
