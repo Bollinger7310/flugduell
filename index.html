@@ -452,13 +452,13 @@ function setStatus(t){setTxt("status",t);}
 
 function renderSetup(app){
   document.getElementById("top").hidden=true;document.getElementById("score").innerHTML="";document.getElementById("mapcard").hidden=true;
-  const names=S.players||["Hendrik","Tyron"];
+  const names=S.players||["",""];
   app.appendChild($(`<section class="card hero">
     <div class="eyebrow">Live-Flugzeug-Quiz</div>
     <h1>Flug&shy;duell</h1>
     <p>Ein echter Flug, der gerade in der Luft ist. Beide tippen gleichzeitig, welcher Flugzeugtyp da fliegt.</p>
-    <div class="field" style="--c:var(--p1)"><i></i><input id="n1" maxlength="16" autocomplete="off" placeholder="Spieler 1" aria-label="Name Spieler 1" value="${esc(names[0])}"></div>
-    <div class="field" style="--c:var(--p2)"><i></i><input id="n2" maxlength="16" autocomplete="off" placeholder="Spieler 2" aria-label="Name Spieler 2" value="${esc(names[1])}"></div>
+    <div class="field" style="--c:var(--p1)"><i></i><input id="n1" maxlength="16" autocomplete="off" placeholder="Name Spieler 1" aria-label="Name Spieler 1" value="${esc(names[0])}"></div>
+    <div class="field" style="--c:var(--p2)"><i></i><input id="n2" maxlength="16" autocomplete="off" placeholder="Name Spieler 2" aria-label="Name Spieler 2" value="${esc(names[1])}"></div>
     <ul class="rules">
       <li><b>1</b><span>Erst per Freitext tippen, z. B. „A350“ oder „787“. Das Modell reicht.</span></li>
       <li><b>2</b><span>Zu schwer? „3 Typen zeigen“ macht Multiple Choice daraus.</span></li>
