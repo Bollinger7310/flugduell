@@ -5,116 +5,186 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Flugduell">
-<title>Flugzeugtyp-Duell</title>
+<meta name="theme-color" content="#F2F4F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0A0F15" media="(prefers-color-scheme: dark)">
+<title>Flugduell</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
 <style>
-/* Layout: eine Spalte aus Flugstreifen – Punktestand, Live-Karte, Flugdaten, zwei Spielerstreifen */
+/* Layout: App-Stapel – Kopfzeile mit Punktestand, Karte als Hero, Flugkarte, Tippkarten, fester Aktionsbutton unten */
 :root{
-  --bg:#E6EAEE; --paper:#FBF8EF; --ink:#17202B; --muted:#5B6672; --line:#CAD1D8;
-  --accent:#1F4E79; --hendrik:#C8701E; --tyron:#2766A8; --ok:#25804F; --bad:#B8382B;
-  --hendrik-soft:#F6E3CF; --tyron-soft:#DCE8F5; --ok-soft:#DDF0E4; --bad-soft:#F6DEDA;
-  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
-  --f-body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
-  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
-  color-scheme:light;
+  --bg:#F2F4F7; --card:#FFFFFF; --ink:#0E1621; --muted:#677385; --line:#E3E7ED; --soft:#EEF1F5;
+  --accent:#2F6BFF; --p1:#FF5A36; --p2:#0FB5A3; --ok:#12A150; --bad:#E5484D;
+  --p1-soft:rgba(255,90,54,.12); --p2-soft:rgba(15,181,163,.13); --ok-soft:rgba(18,161,80,.12); --bad-soft:rgba(229,72,77,.12);
+  --shadow:0 1px 2px rgba(14,22,33,.06),0 8px 24px rgba(14,22,33,.06);
+  --f-display:"Bricolage Grotesque",system-ui,sans-serif;
+  --f-body:"Manrope",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --r:22px; color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#0E141B; --paper:#17202A; --ink:#E7ECF1; --muted:#93A0AE; --line:#2B3744;
-  --accent:#8DB8E2; --hendrik:#F0A04B; --tyron:#6FA8E6; --ok:#5CC28A; --bad:#EF7A6C;
-  --hendrik-soft:#3A2A19; --tyron-soft:#1A2B3F; --ok-soft:#173326; --bad-soft:#3A1E1B; color-scheme:dark}}
-*{box-sizing:border-box}
+  --bg:#0A0F15; --card:#131A23; --ink:#EEF2F7; --muted:#8B97A8; --line:#222C38; --soft:#1A232E;
+  --accent:#6E9BFF; --p1:#FF7A5C; --p2:#2DD4BF; --ok:#3DD68C; --bad:#FF6B6F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35); color-scheme:dark}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
-.diag{font:12px/1.5 var(--f-mono);color:var(--muted);text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px}
-html,body{background:var(--bg);color:var(--ink);margin:0}
-body{font-family:var(--f-body);font-size:15px;line-height:1.4;-webkit-text-size-adjust:100%;
-  padding-top:max(12px,env(safe-area-inset-top,0px));padding-bottom:max(28px,env(safe-area-inset-bottom,0px));
-  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
-.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
-button{font:inherit;color:inherit;cursor:pointer}
-button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.score{display:grid;grid-template-columns:1fr auto 1fr;background:var(--paper);border:1px solid var(--line);border-radius:6px;overflow:hidden}
-.score .p{padding:10px 12px;display:flex;flex-direction:column;gap:2px}
-.score .p.h{border-left:6px solid var(--hendrik)}
-.score .p.t{border-right:6px solid var(--tyron);text-align:right;align-items:flex-end}
-.score .name{font-family:var(--f-display);font-weight:600;font-size:20px}
-.score .pts{font-family:var(--f-display);font-weight:700;font-size:40px;line-height:1;font-variant-numeric:tabular-nums}
-.score .mid{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 8px;border-inline:1px dashed var(--line)}
-.score .mid b{font-family:var(--f-display);font-size:22px}
-#map{height:260px;border-radius:6px;border:1px solid var(--line);background:var(--paper);z-index:0}
-.mapbar{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:-6px}
-.live{display:inline-flex;align-items:center;gap:6px}
-.live i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
-.live.stale i{background:var(--bad)}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow)}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* Kopfzeile */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px}
+.brand{font-family:var(--f-display);font-weight:800;font-size:24px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.brand svg{color:var(--accent)}
+.iconbtn{width:40px;height:40px;border-radius:50%;background:var(--card);box-shadow:var(--shadow);display:grid;place-items:center;color:var(--muted)}
+.scorebar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:14px 16px}
+.sp{display:flex;align-items:center;gap:10px;min-width:0}
+.sp.r{flex-direction:row-reverse;text-align:right}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;flex:none;font-family:var(--f-display)}
+.sp .col{display:flex;flex-direction:column;min-width:0}
+.sp.r .col{align-items:flex-end}
+.sp .nm{font-weight:700;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.sp .pt{font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1}
+.vs{display:flex;flex-direction:column;align-items:center;padding:0 12px;color:var(--muted);font-size:12px}
+.vs b{font-family:var(--f-mono);color:var(--ink);font-size:15px}
+
+/* Karte */
+.mapcard{position:relative;overflow:hidden;padding:0}
+#map{height:min(42vh,340px);width:100%;background:var(--soft)}
+.chip{position:absolute;z-index:500;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;box-shadow:var(--shadow)}
+.chip.live{top:12px;left:12px}
+.chip.center{top:12px;right:12px;cursor:pointer}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 2s infinite}
+.stale .dot{background:var(--bad);animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 60%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
 .plane-ic{color:var(--accent)}
-.plane-ic svg{filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
-.ap-ic{width:10px;height:10px;border-radius:50%;background:var(--paper);border:3px solid var(--accent)}
-.strip{background:var(--paper);border:1px solid var(--line);border-radius:6px;display:grid;grid-template-columns:42px 1fr;overflow:hidden}
-.strip .side{background:var(--accent);color:var(--paper);display:flex;align-items:center;justify-content:center}
-.strip .side span{writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--f-mono);font-weight:600;letter-spacing:.12em;font-size:13px;white-space:nowrap}
-.strip .body{padding:12px 14px;display:flex;flex-direction:column;gap:12px;min-width:0}
-.airline{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
-.airline h1{font-family:var(--f-display);font-weight:700;font-size:28px;margin:0;line-height:1.05}
-.airline .fn{font-family:var(--f-mono);font-weight:600;font-size:15px;padding:2px 8px;border:1px solid var(--ink);border-radius:3px}
-.route{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:start}
-.ap{min-width:0;display:flex;flex-direction:column;gap:1px;overflow-wrap:anywhere}
-.ap.to{text-align:right;align-items:flex-end}
-.ap .icao{font-family:var(--f-display);font-weight:700;font-size:38px;line-height:1}
-.ap .city{font-weight:600}
-.ap .apname{font-size:13px;color:var(--muted)}
-.ap .time{font-family:var(--f-mono);font-size:14px;margin-top:4px}
-.route .arrow{font-family:var(--f-mono);color:var(--muted);padding-top:10px}
-.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 8px;border-top:1px dashed var(--line);padding-top:10px}
-.facts div{display:flex;flex-direction:column;gap:2px;min-width:0}
-.facts .v{font-family:var(--f-mono);font-weight:600;font-size:16px;font-variant-numeric:tabular-nums}
-.note{font-size:12px;color:var(--muted)}
-.note a{color:var(--accent)}
-.row{display:flex;gap:8px;flex-wrap:wrap}
-.btn{border:1px solid var(--ink);background:transparent;border-radius:5px;padding:11px 14px;font-weight:600;min-height:44px}
-.btn.primary{background:var(--ink);color:var(--paper)}
-.btn.grow{flex:1}
-.btn:disabled{opacity:.4;cursor:default}
-.btn.quiet{border-color:var(--line);color:var(--muted);font-weight:500}
-.players{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.pl{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0;border-top-width:6px}
-.pl.h{border-top-color:var(--hendrik)}
-.pl.t{border-top-color:var(--tyron)}
-.pl h2{margin:0;font-family:var(--f-display);font-weight:700;font-size:22px}
-.pl input{width:100%;font:600 16px var(--f-mono);padding:10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);-webkit-text-security:disc}
-.opt{width:100%;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:4px;padding:10px;font:600 15px var(--f-mono);min-height:44px}
-.locked{font-family:var(--f-mono);font-size:13px;padding:10px;border-radius:4px;text-align:center}
-.pl.h .locked{background:var(--hendrik-soft)}
-.pl.t .locked{background:var(--tyron-soft)}
-.tiny{background:none;border:none;color:var(--muted);font-size:12px;text-decoration:underline;padding:2px 0;align-self:flex-start}
-.mode{font-size:11px;color:var(--muted)}
-.reveal{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px}
-.reveal .ans{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1}
-.res{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.res div{padding:8px 10px;border-radius:4px;font-size:14px;min-width:0;overflow-wrap:anywhere}
-.res .ok{background:var(--ok-soft);color:var(--ok)}
-.res .bad{background:var(--bad-soft);color:var(--bad)}
-.res b{display:block;color:var(--ink)}
-.msg{background:var(--paper);border:1px dashed var(--line);border-radius:6px;padding:20px;text-align:center;color:var(--muted)}
-.msg.err{border-color:var(--bad);color:var(--bad)}
-.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.plane-ic svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+.ap-ic{width:12px;height:12px;border-radius:50%;background:var(--card);border:3px solid var(--ink)}
+.leaflet-tooltip.apt{background:var(--ink);color:var(--card);border:0;border-radius:8px;font:600 11px var(--f-mono);padding:3px 7px;box-shadow:none}
+.leaflet-tooltip.apt:before{display:none}
 .leaflet-container{font-family:var(--f-body)}
+.leaflet-control-attribution{font-size:9px}
+
+/* Flugkarte */
+.flight{padding:18px;display:flex;flex-direction:column;gap:16px}
+.fh{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fh h1{margin:0;font-family:var(--f-display);font-weight:800;font-size:24px;letter-spacing:-.01em;line-height:1.1}
+.cs{font:600 13px var(--f-mono);background:var(--soft);border-radius:8px;padding:5px 9px;white-space:nowrap}
+.rt{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:start}
+.ap{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere}
+.ap.to{text-align:right;align-items:flex-end}
+.ap .code{font-family:var(--f-display);font-weight:800;font-size:40px;line-height:.95;letter-spacing:-.02em}
+.ap .city{font-weight:700;margin-top:4px}
+.ap .an{font-size:12px;color:var(--muted)}
+.ap .tm{font:600 13px var(--f-mono);margin-top:6px}
+.rt .mid{padding-top:12px;color:var(--muted)}
+.bar{position:relative;height:6px;border-radius:99px;background:var(--soft);margin:4px 0 2px}
+.bar .fill{position:absolute;inset:0 auto 0 0;border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 40%,transparent),var(--accent))}
+.bar .pl{position:absolute;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat{background:var(--soft);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat .v{font:600 17px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fine{font-size:12px;color:var(--muted)}
+.fine a{color:var(--accent);text-decoration:none;font-weight:600}
+
+/* Tipps */
+.hintbtn{display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;border-radius:16px;background:var(--card);box-shadow:var(--shadow);font-weight:700}
+.hintbtn:disabled{opacity:.45}
+.guesses{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.gc{padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0;position:relative;overflow:hidden}
+.gc:before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--c)}
+.gc .who{display:flex;align-items:center;gap:8px;font-weight:800;min-width:0}
+.gc .who span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc .who i{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+.gc input{width:100%;font:600 17px var(--f-mono);padding:12px;border-radius:12px;border:1.5px solid var(--line);background:var(--soft);color:var(--ink);-webkit-text-security:disc;text-transform:uppercase}
+.gc input:focus{border-color:var(--c);outline:none}
+.go{padding:11px;border-radius:12px;background:var(--c);color:#fff;font-weight:800}
+.opt{width:100%;padding:12px;border-radius:12px;background:var(--soft);font:600 15px var(--f-mono);text-align:center;border:1.5px solid transparent}
+.opt:active{border-color:var(--c)}
+.done{border-radius:12px;padding:14px 10px;text-align:center;background:var(--cs);font-weight:700;font-size:13px}
+.done .ck{display:block;font-size:22px;color:var(--c)}
+.link{font-size:12px;color:var(--muted);text-decoration:underline;align-self:center}
+.err{font-size:12px;color:var(--bad)}
+.lbl{font-size:12px;color:var(--muted)}
+
+/* Auflösung */
+.reveal{padding:20px;display:flex;flex-direction:column;gap:14px;text-align:center}
+.reveal .ty{font-family:var(--f-display);font-weight:800;font-size:40px;letter-spacing:-.02em;line-height:1}
+.reveal .sub{font:600 13px var(--f-mono);color:var(--muted)}
+.res{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left}
+.res div{border-radius:14px;padding:10px 12px;min-width:0;overflow-wrap:anywhere}
+.res .ok{background:var(--ok-soft)}
+.res .bad{background:var(--bad-soft)}
+.res b{display:block}
+.res .ok em{color:var(--ok);font-style:normal;font-weight:800}
+.res .bad em{color:var(--bad);font-style:normal;font-weight:800}
+
+/* Aktionsleiste */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:1000;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  background:linear-gradient(180deg,transparent,var(--bg) 35%)}
+.dock .in{max-width:520px;margin:0 auto;display:flex;gap:10px}
+.cta{flex:1;padding:16px;border-radius:18px;background:var(--ink);color:var(--bg);font-weight:800;font-size:16px;box-shadow:var(--shadow)}
+.cta:disabled{opacity:.4}
+.ghost{padding:16px;border-radius:18px;background:var(--card);box-shadow:var(--shadow);font-weight:700;color:var(--muted)}
+
+/* Start */
+.hero{padding:28px 22px;display:flex;flex-direction:column;gap:18px}
+.hero h1{margin:0;font-family:var(--f-display);font-weight:800;font-size:44px;letter-spacing:-.03em;line-height:.95}
+.hero p{margin:0;color:var(--muted)}
+.field{display:flex;align-items:center;gap:12px;background:var(--soft);border-radius:16px;padding:6px 6px 6px 14px;border:1.5px solid transparent}
+.field:focus-within{border-color:var(--c)}
+.field i{width:12px;height:12px;border-radius:50%;background:var(--c);flex:none}
+.field input{flex:1;min-width:0;border:0;background:none;font:700 17px var(--f-body);color:var(--ink);padding:12px 0;outline:none}
+.rules{display:flex;flex-direction:column;gap:8px;font-size:14px;color:var(--muted);padding:0;margin:0;list-style:none}
+.rules li{display:flex;gap:10px}
+.rules li b{color:var(--ink)}
+
+/* Laden */
+.loading{padding:36px 20px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.radar{width:72px;height:72px;border-radius:50%;position:relative;background:radial-gradient(circle,var(--soft) 0 30%,transparent 31%),repeating-radial-gradient(circle,transparent 0 11px,var(--line) 11px 12px)}
+.radar:after{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,color-mix(in srgb,var(--accent) 45%,transparent),transparent 25%);animation:spin 1.6s linear infinite}
+@keyframes spin{to{transform:rotate(1turn)}}
+.problem{padding:18px;display:flex;flex-direction:column;gap:10px}
+.problem b{color:var(--bad)}
+.diag{font:11px/1.55 var(--f-mono);color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);border-radius:12px;padding:10px;max-height:220px;overflow:auto}
+.sheet{padding:18px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.small{padding:10px 14px;border-radius:12px;background:var(--soft);font-weight:700}
+.small.danger{color:var(--bad)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <header class="top" id="top" hidden>
+    <div class="brand"><svg width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>Flugduell</div>
+    <button class="iconbtn" id="menuBtn" aria-label="Spiel-Menü"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button>
+  </header>
+  <div id="menu" hidden></div>
   <div id="score"></div>
-  <div id="mapbox" hidden><div id="map"></div></div>
-  <div class="mapbar" id="mapbar" hidden><span class="live" id="live"><i></i><span id="livetxt">live</span></span><button class="tiny" id="center">Flugzeug zentrieren</button></div>
-  <div id="app"></div>
+  <section class="card mapcard" id="mapcard" hidden>
+    <div id="map"></div>
+    <div class="chip live" id="live"><span class="dot"></span><span id="livetxt">live</span></div>
+    <button class="chip center" id="center">Zentrieren</button>
+  </section>
+  <main id="app" class="wrap" style="gap:14px"></main>
 </div>
+<div class="dock" id="dock" hidden><div class="in" id="dockIn"></div></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 // ===================== Stammdaten =====================
-// Passagier-Airlines (ICAO-Code) mit Airbus/Boeing-Flotte (nur Airlines mit mind. 3 Modellen)
 const AL={
 DLH:["Lufthansa","A319 A320 A321 A330 A340 A350 A380 747 787"],CFG:["Condor","A320 A321 A330"],
 SWR:["Swiss","A220 A320 A321 A330 A340 A350 777"],AUA:["Austrian Airlines","A320 A321 767 777 787"],
@@ -145,7 +215,6 @@ AVA:["Avianca","A319 A320 A321 787"],AZU:["Azul","A320 A321 A330"]
 };
 for(const k in AL) AL[k][1]=AL[k][1].split(" ");
 const NAMES={A220:"Airbus A220",A318:"Airbus A318",A319:"Airbus A319",A320:"Airbus A320",A321:"Airbus A321",A330:"Airbus A330",A340:"Airbus A340",A350:"Airbus A350",A380:"Airbus A380","737":"Boeing 737","747":"Boeing 747","757":"Boeing 757","767":"Boeing 767","777":"Boeing 777","787":"Boeing 787"};
-// ICAO-Typcode -> Modell
 const TYPE={BCS1:"A220",BCS3:"A220",A318:"A318",A319:"A319",A19N:"A319",A320:"A320",A20N:"A320",A321:"A321",A21N:"A321",
 A332:"A330",A333:"A330",A338:"A330",A339:"A330",A342:"A340",A343:"A340",A345:"A340",A346:"A340",A359:"A350",A35K:"A350",A388:"A380",
 B731:"737",B732:"737",B733:"737",B734:"737",B735:"737",B736:"737",B737:"737",B738:"737",B739:"737",B37M:"737",B38M:"737",B39M:"737",B3XM:"737",
@@ -155,15 +224,12 @@ const SUB={BCS1:"A220-100",BCS3:"A220-300",A19N:"A319neo",A20N:"A320neo",A21N:"A
 A342:"A340-200",A343:"A340-300",A345:"A340-500",A346:"A340-600",A359:"A350-900",A35K:"A350-1000",A388:"A380-800",B736:"737-600",B737:"737-700",B738:"737-800",B739:"737-900",
 B37M:"737 MAX 7",B38M:"737 MAX 8",B39M:"737 MAX 9",B3XM:"737 MAX 10",B744:"747-400",B748:"747-8",B752:"757-200",B753:"757-300",B762:"767-200",B763:"767-300",B764:"767-400",
 B772:"777-200",B773:"777-300",B77L:"777-200LR",B77W:"777-300ER",B778:"777-8",B779:"777-9",B788:"787-8",B789:"787-9",B78X:"787-10"};
-// plausible Streckenlänge je Modell in nm [min,max]
 const RANGE={A220:[0,2600],A318:[0,2800],A319:[0,3000],A320:[0,3000],A321:[0,3800],"737":[0,3200],"757":[0,3800],"767":[0,5500],A330:[0,6500],"787":[0,7600],A350:[600,8200],"777":[600,7600],A340:[1500,7200],"747":[1500,7200],A380:[1500,8000]};
-const PLAYERS=[{id:"H",name:"Hendrik",cls:"h"},{id:"T",name:"Tyron",cls:"t"}];
-// Suchgebiete (Mittelpunkt, Radius 250 nm)
 const REGIONS=[[50.1,8.6],[51.5,-0.4],[49.0,2.5],[52.3,4.8],[41.3,28.8],[40.5,-3.6],[47.5,11.5],[25.2,55.3],[25.3,51.6],[28.6,77.1],[19.1,72.9],
 [1.4,103.9],[22.3,113.9],[13.7,100.7],[35.6,139.8],[37.5,126.5],[31.2,121.5],[-33.9,151.2],[40.6,-73.8],[41.9,-87.9],[33.6,-84.4],[33.9,-118.4],
-[37.6,-122.4],[32.9,-97.0],[43.7,-79.6],[25.8,-80.3],[47.4,-122.3],[-23.4,-46.5],[19.4,-99.1],[-26.1,28.2],[60.3,24.9],[55.6,12.6],[45.6,-73.7]];
+[37.6,-122.4],[32.9,-97.0],[43.7,-79.6],[25.8,-80.3],[47.4,-122.3],[-23.4,-46.5],[19.4,-99.1],[-26.1,28.2],[60.3,24.9],[55.6,12.6]];
+const PIDS=["p1","p2"];
 
-// ===================== Freitext =====================
 function normalize(raw){
   let s=(raw||"").toUpperCase().replace(/AIRBUS|BOEING|[\s\-_.]/g,"");
   if(!s) return null;
@@ -188,97 +254,102 @@ function gc(a,b,n=64){const p1=[rad(a[0]),rad(a[1])],p2=[rad(b[0]),rad(b[1])],d=
 function unwrap(pts,ref){const o=[];let prev=ref??null;for(const p of pts){let lon=p[1];if(prev!==null){while(lon-prev>180)lon-=360;while(lon-prev<-180)lon+=360;}o.push([p[0],lon]);prev=lon;}return o;}
 
 // ===================== Live-Daten =====================
-// Live-Quellen: [Name, Gebiets-URL, Flugzeug-URL]
 const SRC=[
  ["adsb.lol",(la,lo,r)=>`https://api.adsb.lol/v2/point/${la}/${lo}/${r}`,h=>`https://api.adsb.lol/v2/hex/${h}`],
  ["adsb.fi",(la,lo,r)=>`https://opendata.adsb.fi/api/v2/lat/${la}/lon/${lo}/dist/${r}`,h=>`https://opendata.adsb.fi/api/v2/hex/${h}`],
  ["airplanes.live",(la,lo,r)=>`https://api.airplanes.live/v2/point/${la}/${lo}/${r}`,h=>`https://api.airplanes.live/v2/hex/${h}`]];
-let DIAG=[];const note=m=>{DIAG.push(m);if(DIAG.length>60)DIAG.shift();};
-const errTxt=e=>e.name==="AbortError"?"Zeitüberschreitung":(e.message==="Load failed"||e.message==="Failed to fetch")?"blockiert (CORS/Netz)":e.message;
-let goodSrc=null;
-// Direkt zuerst, sonst über öffentliche CORS-Weiterleitungen
 const VIA=[["direkt",u=>u],["corsproxy.io",u=>"https://corsproxy.io/?url="+encodeURIComponent(u)],
  ["codetabs",u=>"https://api.codetabs.com/v1/proxy/?quest="+encodeURIComponent(u)],
  ["allorigins",u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u)]];
-let goodVia=null;
-async function smartJSON(url,label){
-  const order=goodVia?[goodVia,...VIA.filter(v=>v!==goodVia)]:VIA;let err;
-  for(const v of order){try{const d=await getJSON(v[1](url));goodVia=v;return d;}
-    catch(e){err=e;note(`${label} über ${v[0]}: ${errTxt(e)}`);}}
-  throw err;}
-async function getJSON(url,opt){const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),12000);
-  try{const r=await fetch(url,{...opt,signal:ctl.signal,cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);return await r.json();}finally{clearTimeout(t);}}
-async function adsbAny(kind,...args){
-  const order=goodSrc?[goodSrc,...SRC.filter(s=>s!==goodSrc)]:SRC;let err;
-  for(const s of order){try{const d=await smartJSON(s[+kind](...args),s[0]);const ac=d.ac||d.aircraft||[];goodSrc=s;return {ac,src:s[0]};}
-    catch(e){err=e;}}
-  throw err||new Error("keine Quelle");}
-async function routes(planes){
-  try{const r=await getJSON("https://api.adsb.lol/api/0/routeset",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({planes})});
-    const out={};for(const x of r||[]){if(x&&x._airports&&x._airports.length>=2)out[x.callsign]=x;}note(`Routen adsb.lol: ${Object.keys(out).length} von ${planes.length}`);return out;}catch(e){note(`Routen adsb.lol: ${errTxt(e)}`);return {};}
+let DIAG=[];const note=m=>{DIAG.push(m);if(DIAG.length>80)DIAG.shift();};
+const errTxt=e=>e.name==="AbortError"?"Zeitüberschreitung":/Load failed|Failed to fetch|NetworkError/.test(e.message)?"blockiert":e.message;
+let best=null; // {s,v} letzte funktionierende Kombination
+async function getJSON(url,ms=9000,signal){const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms);
+  const onAbort=()=>ctl.abort();signal&&signal.addEventListener("abort",onAbort);
+  try{const r=await fetch(url,{signal:ctl.signal,cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const txt=await r.text();return JSON.parse(txt);}
+  finally{clearTimeout(t);signal&&signal.removeEventListener("abort",onAbort);}}
+// Alle Kombinationen parallel – die erste Antwort gewinnt
+async function race(attempts,ms){
+  const ctl=new AbortController();
+  try{return await Promise.any(attempts.map(a=>getJSON(a.url,ms,ctl.signal).then(d=>({d,a})).catch(e=>{if(!ctl.signal.aborted)note(`${a.label}: ${errTxt(e)}`);throw e;})));}
+  catch(e){throw new Error("alle Wege blockiert");}
+  finally{ctl.abort();}
 }
+async function adsbAny(kind,...args){
+  if(best){try{const d=await getJSON(best.v[1](best.s[kind](...args)),8000);return {ac:d.ac||d.aircraft||[],src:best.s[0]+" über "+best.v[0]};}catch(e){note(`${best.s[0]} über ${best.v[0]}: ${errTxt(e)}`);}}
+  const attempts=[];for(const s of SRC)for(const v of VIA)attempts.push({url:v[1](s[kind](...args)),label:`${s[0]} über ${v[0]}`,s,v});
+  const {d,a}=await race(attempts,10000);best={s:a.s,v:a.v};
+  return {ac:d.ac||d.aircraft||[],src:a.label};
+}
+let adsbdbVia=null;
 async function routeAdsbdb(cs){
-  try{const r=await smartJSON("https://api.adsbdb.com/v0/callsign/"+cs,"adsbdb");const f=r.response.flightroute;
+  const u="https://api.adsbdb.com/v0/callsign/"+cs;let r;
+  try{
+    if(adsbdbVia){try{r=await getJSON(adsbdbVia[1](u),8000);}catch(e){r=null;}}
+    if(!r){const res=await race(VIA.map(v=>({url:v[1](u),label:"Route über "+v[0],v})),9000);r=res.d;adsbdbVia=res.a.v;}
+    const f=r.response&&r.response.flightroute;if(!f)return null;
     const m=a=>({icao:a.icao_code,iata:a.iata_code,name:a.name,location:a.municipality,lat:a.latitude,lon:a.longitude});
-    return {callsign:cs,_airports:[m(f.origin),m(f.destination)],plausible:true};}catch(e){note(`Route ${cs} nicht gefunden`);return null;}
+    return {callsign:cs,_airports:[m(f.origin),m(f.destination)],plausible:true};
+  }catch(e){return null;}
 }
 function parseCs(ac){const cs=(ac.flight||"").trim();const m=cs.match(/^([A-Z]{3})(\d{1,4})([A-Z]{0,2})$/);if(!m)return null;return {cs,al:m[1],num:+m[2]};}
 function isCandidate(ac){
   if(!ac||typeof ac.alt_baro!=="number"||ac.alt_baro<12000)return false;
   if(ac.lat==null||ac.lon==null||!TYPE[ac.t])return false;
-  if((ac.dbFlags||0)&1)return false;                 // Militär
-  const c=parseCs(ac);if(!c||!AL[c.al])return false;  // nur Passagier-Airlines
-  if(c.num>=9000)return false;                       // Fracht-/Sonderflüge
+  if((ac.dbFlags||0)&1)return false;
+  const c=parseCs(ac);if(!c||!AL[c.al])return false;
+  if(c.num>=9000)return false;
   if(["UAE","QTR","ETD","SIA","CPA","THY","KAL","AAR","CAL","EVA","CSN","CES","CCA","ETH","SVA","DLH","AFR","KLM","BAW"].includes(c.al)&&c.num>=8000)return false;
   return true;
 }
 function legFor(rt,pos){
-  const a=rt._airports.filter(x=>x&&x.lat!=null);if(a.length<2)return null;let best=null;
-  for(let i=0;i<a.length-1;i++){const o=[a[i].lat,a[i].lon],d=[a[i+1].lat,a[i+1].lon];const dev=dist(o,pos)+dist(pos,d)-dist(o,d);if(!best||dev<best.dev)best={dev,o:a[i],d:a[i+1]};}
-  return best;
+  const a=rt._airports.filter(x=>x&&x.lat!=null);if(a.length<2)return null;let b=null;
+  for(let i=0;i<a.length-1;i++){const o=[a[i].lat,a[i].lon],d=[a[i+1].lat,a[i+1].lon];const dev=dist(o,pos)+dist(pos,d)-dist(o,d);if(!b||dev<b.dev)b={dev,o:a[i],d:a[i+1]};}
+  return b;
 }
+let searchCtl=null;
 async function findFlight(exclude){
-  const regions=[...REGIONS].sort(()=>Math.random()-.5);
-  let tried=0;
-  for(const [la,lo] of regions.slice(0,5)){
-    if(tried++)await new Promise(r=>setTimeout(r,1100));
-    setStatus(`Suche Flüge im Gebiet ${tried} von 5 …`);
-    let data;try{data=await adsbAny("1",la,lo,250);}catch(e){continue;}
-    note(`${data.src}: ${data.ac.length} Flugzeuge, ${data.ac.filter(isCandidate).length} passende Linienflüge`);
-    const cands=(data.ac||[]).filter(isCandidate).filter(a=>!exclude.has(a.hex)).sort(()=>Math.random()-.5).slice(0,25);
+  const regions=[...REGIONS].sort(()=>Math.random()-.5).slice(0,4);
+  for(let i=0;i<regions.length;i++){
+    if(searchCtl&&searchCtl.cancelled)return null;
+    setStatus(i===0?"Radar läuft …":"Noch kein passender Flug, suche woanders …");
+    const [la,lo]=regions[i];
+    let data;try{data=await adsbAny(1,la,lo,180);}catch(e){note("Gebiet "+(i+1)+": keine Daten");if(i>=1&&!best)return null;continue;}
+    const cands=data.ac.filter(isCandidate).filter(a=>!exclude.has(a.hex)).sort(()=>Math.random()-.5).slice(0,6);
+    note(`${data.src}: ${data.ac.length} Flugzeuge, ${cands.length} Kandidaten`);
     if(!cands.length)continue;
-    const rts=await routes(cands.map(a=>({callsign:parseCs(a).cs,lat:a.lat,lng:a.lon})));
-    let lookups=0;
-    for(const ac of cands){
-      const cs=parseCs(ac).cs;let rt=rts[cs];
-      if(!rt&&Object.keys(rts).length===0){if(++lookups>8)break;rt=await routeAdsbdb(cs);}
-      if(!rt||rt.plausible===0||rt.plausible===false)continue;
+    setStatus(`${cands.length} Linienflüge gefunden, prüfe Routen …`);
+    const rts=await Promise.all(cands.map(a=>routeAdsbdb(parseCs(a).cs)));
+    for(let k=0;k<cands.length;k++){
+      const ac=cands[k],rt=rts[k];if(!rt)continue;
       const leg=legFor(rt,[ac.lat,ac.lon]);if(!leg)continue;
       const total=dist([leg.o.lat,leg.o.lon],[leg.d.lat,leg.d.lon]);
       if(total<150||leg.dev>Math.max(250,total*0.25))continue;
-      const remain=dist([ac.lat,ac.lon],[leg.d.lat,leg.d.lon]);if(remain<120)continue;
-      return {hex:ac.hex,cs,al:parseCs(ac).al,type:ac.t,reg:ac.r||"",o:leg.o,d:leg.d,ac};
+      if(dist([ac.lat,ac.lon],[leg.d.lat,leg.d.lon])<120)continue;
+      return {hex:ac.hex,cs:parseCs(ac).cs,al:parseCs(ac).al,type:ac.t,reg:ac.r||"",o:leg.o,d:leg.d,ac};
     }
+    note("Keine plausible Route in diesem Gebiet");
   }
   return null;
 }
 
 // ===================== Zustand =====================
-const KEY="flugduell-live-v1";let S;
-function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}if(!S||!S.history)S={history:[],round:null};}
+const KEY="flugduell-v2";let S;
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+  if(!S||!S.history)S={players:null,history:[],round:null};}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-function scores(){const s={H:0,T:0};for(const r of S.history)for(const p of PLAYERS)if(r.guess[p.id]===r.answer)s[p.id]++;return s;}
-let live=null, lastOk=0, loading=false, loadErr="", confirmReset=false;
+function scores(){const s={p1:0,p2:0};for(const r of S.history)for(const p of PIDS)if(r.guess[p]===r.answer)s[p]++;return s;}
+let live=null,lastOk=0,phase="idle",menuOpen=false,confirmReset=false;
 
 async function newRound(){
-  loading=true;loadErr="";DIAG=[];render();
-  const recent=new Set(S.history.slice(-50).map(h=>h.hex));
-  let f=null;
-  try{f=await findFlight(recent);}catch(e){note("Fehler: "+e.message);}
-  loading=false;
-  if(!f){loadErr="Kein Live-Flug gefunden. Schick Claude einen Screenshot der Details.";render();return;}
-  S.round={...f,ac:undefined,options:null,guess:{H:null,T:null},mode:{H:"text",T:"text"},draft:{H:"",T:""},revealed:false,trail:[[f.ac.lat,f.ac.lon]]};
-  live=f.ac;lastOk=Date.now();save();resetMap();render();
+  phase="loading";DIAG=[];searchCtl={cancelled:false};render();
+  const recent=new Set(S.history.slice(-60).map(h=>h.hex));
+  let f=null;try{f=await findFlight(recent);}catch(e){note("Fehler: "+e.message);}
+  if(searchCtl.cancelled){phase="idle";render();return;}
+  if(!f){phase="error";render();return;}
+  phase="idle";
+  S.round={...f,ac:undefined,options:null,guess:{p1:null,p2:null},mode:{p1:"text",p2:"text"},draft:{p1:"",p2:""},revealed:false,trail:[[f.ac.lat,f.ac.lon]]};
+  live=f.ac;lastOk=Date.now();save();render();resetMap();
 }
 function drawOptions(){
   const r=S.round,model=TYPE[r.type],total=dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon]);
@@ -287,62 +358,65 @@ function drawOptions(){
   const near=t=>Math.abs(RANGE[t][1]-total);
   const others=[...fleet.filter(fits).sort(()=>Math.random()-.5),...fleet.filter(t=>!fits(t)).sort((a,b)=>near(a)-near(b))].slice(0,2);
   r.options=[model,...others].sort(()=>Math.random()-.5);
-  for(const p of PLAYERS)if(!r.guess[p.id]){r.mode[p.id]="mc";r.draft[p.id]="";}
+  for(const p of PIDS)if(!r.guess[p]){r.mode[p]="mc";r.draft[p]="";}
   save();render();
 }
 function lockText(pid){const raw=document.getElementById("in-"+pid).value;const m=normalize(raw);
-  if(!m){const e=document.getElementById("err-"+pid);e.textContent="Unbekannter Typ. Beispiele: A330, 787, B77W.";e.hidden=false;return;}
+  if(!m){const e=document.getElementById("err-"+pid);e.textContent="Typ nicht erkannt – z. B. A330, 787, B77W";e.hidden=false;return;}
   S.round.guess[pid]=m;save();render();}
 function pickOption(pid,t){S.round.guess[pid]=t;S.round.mode[pid]="mc";save();render();}
 function unlock(pid){S.round.guess[pid]=null;save();render();}
 function reveal(){const r=S.round;r.revealed=true;S.history.push({hex:r.hex,cs:r.cs,answer:TYPE[r.type],guess:{...r.guess},mode:{...r.mode}});save();render();}
 
 // ===================== Karte =====================
-let map,layers=[],planeMk,trailLn;
-const PLANE_SVG=a=>`<svg width="30" height="30" viewBox="0 0 24 24" style="transform:rotate(${a}deg)"><path fill="currentColor" stroke="#fff" stroke-width=".6" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>`;
+let map,layers=[],planeMk,trailLn,tiles;
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const PLANE_SVG=a=>`<svg width="34" height="34" viewBox="0 0 24 24" style="transform:rotate(${a}deg)"><path fill="currentColor" stroke="#fff" stroke-width=".7" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>`;
 function initMap(){
   if(map||!window.L)return;
-  map=L.map("map",{zoomControl:true,attributionControl:true,worldCopyJump:false});
+  map=L.map("map",{zoomControl:false,attributionControl:true});
   const dark=matchMedia("(prefers-color-scheme: dark)").matches;
-  L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark?"dark_all":"rastertiles/voyager"}/{z}/{x}/{y}{r}.png`,{maxZoom:12,subdomains:"abcd",
-    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>'}).addTo(map);
+  tiles=L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark?"dark_all":"rastertiles/voyager"}/{z}/{x}/{y}{r}.png`,{maxZoom:12,subdomains:"abcd",
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>'}).addTo(map);
 }
 function resetMap(){
-  const r=S.round;if(!r||!r.o)return;
-  document.getElementById("mapbox").hidden=false;document.getElementById("mapbar").hidden=false;
-  initMap();if(!map)return;
+  const r=S.round;const mc=document.getElementById("mapcard");
+  if(!r||!r.o){mc.hidden=true;return;}
+  mc.hidden=false;initMap();if(!map)return;
+  map.invalidateSize();
   layers.forEach(l=>map.removeLayer(l));layers=[];
-  const o=[r.o.lat,r.o.lon],d=[r.d.lat,r.d.lon];
-  const line=gc(o,d);
-  const ref=line[0][1];
-  layers.push(L.polyline(line,{color:getComputedStyle(document.documentElement).getPropertyValue("--muted"),weight:2,dashArray:"6 6"}).addTo(map));
-  const apIcon=L.divIcon({className:"",html:'<div class="ap-ic"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-  layers.push(L.marker(line[0],{icon:apIcon}).bindTooltip(r.o.icao,{permanent:true,direction:"top",offset:[0,-6]}).addTo(map));
-  layers.push(L.marker(line[line.length-1],{icon:apIcon}).bindTooltip(r.d.icao,{permanent:true,direction:"top",offset:[0,-6]}).addTo(map));
-  trailLn=L.polyline(unwrap(r.trail||[],ref),{color:getComputedStyle(document.documentElement).getPropertyValue("--accent"),weight:3}).addTo(map);layers.push(trailLn);
-  planeMk=L.marker(unwrap([[live?.lat??r.trail.at(-1)[0],live?.lon??r.trail.at(-1)[1]]],ref)[0],{icon:L.divIcon({className:"plane-ic",html:PLANE_SVG(live?.track||0),iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:1000}).addTo(map);layers.push(planeMk);
-  map.fitBounds(L.latLngBounds(line.concat([planeMk.getLatLng()])),{padding:[24,24]});
-  setTimeout(()=>map.invalidateSize(),50);
+  const line=gc([r.o.lat,r.o.lon],[r.d.lat,r.d.lon]),ref=line[0][1];
+  layers.push(L.polyline(line,{color:css("--muted"),weight:2,dashArray:"2 7",lineCap:"round"}).addTo(map));
+  const apIcon=L.divIcon({className:"",html:'<div class="ap-ic"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+  layers.push(L.marker(line[0],{icon:apIcon}).bindTooltip(r.o.iata||r.o.icao,{permanent:true,direction:"top",offset:[0,-8],className:"apt"}).addTo(map));
+  layers.push(L.marker(line.at(-1),{icon:apIcon}).bindTooltip(r.d.iata||r.d.icao,{permanent:true,direction:"top",offset:[0,-8],className:"apt"}).addTo(map));
+  trailLn=L.polyline(unwrap(r.trail||[],ref),{color:css("--accent"),weight:4,lineCap:"round"}).addTo(map);layers.push(trailLn);
+  const last=unwrap(r.trail,ref).at(-1);
+  planeMk=L.marker(last,{icon:L.divIcon({className:"plane-ic",html:PLANE_SVG(live?.track||0),iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:1000}).addTo(map);layers.push(planeMk);
+  map.fitBounds(L.latLngBounds(line.concat([last])),{padding:[36,36]});
 }
 function updatePlane(){
   if(!map||!planeMk||!live||!S.round)return;
   const ref=gc([S.round.o.lat,S.round.o.lon],[S.round.d.lat,S.round.d.lon])[0][1];
   const pts=unwrap(S.round.trail,ref);trailLn.setLatLngs(pts);
-  planeMk.setLatLng(pts.at(-1));planeMk.setIcon(L.divIcon({className:"plane-ic",html:PLANE_SVG(live.track||0),iconSize:[30,30],iconAnchor:[15,15]}));
+  planeMk.setLatLng(pts.at(-1));planeMk.setIcon(L.divIcon({className:"plane-ic",html:PLANE_SVG(live.track||0),iconSize:[34,34],iconAnchor:[17,17]}));
 }
-document.getElementById("center").onclick=()=>{if(map&&planeMk)map.setView(planeMk.getLatLng(),Math.max(map.getZoom(),6));};
+document.getElementById("center").onclick=()=>{if(map&&planeMk)map.setView(planeMk.getLatLng(),Math.max(map.getZoom(),7));};
 
 // ===================== Live-Abfrage =====================
+let polling=false;
 async function poll(){
-  const r=S.round;if(!r||!r.hex||document.hidden)return;
-  try{const d=await adsbAny("2",r.hex);const ac=d.ac[0];
+  const r=S.round;if(!r||!r.hex||document.hidden||polling||phase==="loading")return;
+  polling=true;
+  try{const d=await adsbAny(2,r.hex);const ac=d.ac[0];
     if(ac&&ac.lat!=null){live=ac;lastOk=Date.now();const last=r.trail.at(-1);
-      if(!last||dist(last,[ac.lat,ac.lon])>1){r.trail.push([ac.lat,ac.lon]);if(r.trail.length>600)r.trail.shift();save();}
+      if(!last||dist(last,[ac.lat,ac.lon])>1){r.trail.push([ac.lat,ac.lon]);if(r.trail.length>800)r.trail.shift();save();}
       updatePlane();}
   }catch(e){}
-  updateFacts();
+  polling=false;updateFacts();
 }
-setInterval(poll,5000);
+setInterval(poll,6000);
+setInterval(updateFacts,1000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)poll();});
 
 // ===================== Darstellung =====================
@@ -350,91 +424,139 @@ const $=h=>{const t=document.createElement("template");t.innerHTML=h.trim();retu
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtT=t=>new Date(t).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
 function dur(m){m=Math.max(0,Math.round(m));const h=Math.floor(m/60),mm=m%60;return h?`${h} h ${String(mm).padStart(2,"0")} min`:`${mm} min`;}
+const P=i=>({id:PIDS[i],name:S.players?S.players[i]:["Spieler 1","Spieler 2"][i],c:i?"var(--p2)":"var(--p1)",cs:i?"var(--p2-soft)":"var(--p1-soft)"});
 function calc(){
   const r=S.round;if(!r||!live)return null;const pos=[live.lat,live.lon],o=[r.o.lat,r.o.lon],d=[r.d.lat,r.d.lon];
   const gs=Math.max(180,live.gs||450),flown=dist(o,pos),rem=dist(pos,d);
-  const cruise=Math.max(gs,420);
-  const el=flown/cruise*60+14, remain=live.alt_baro==="ground"?0:rem/Math.max(gs,300)*60+12;
-  return {el,remain,dep:Date.now()-el*60000,arr:Date.now()+remain*60000};
+  const el=flown/Math.max(gs,420)*60+14,remain=live.alt_baro==="ground"?0:rem/Math.max(gs,300)*60+12;
+  return {el,remain,pct:Math.min(100,flown/(flown+rem)*100),dep:Date.now()-el*60000,arr:Date.now()+remain*60000};
 }
+function setTxt(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
 function updateFacts(){
-  const c=calc();const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-  if(!c||!live)return;
-  const alt=live.alt_baro==="ground"?"am Boden":live.alt_baro.toLocaleString("de-DE")+" ft";
-  const vr=live.baro_rate||0;
-  set("alt",alt+(vr>500?" ↑":vr<-500?" ↓":""));
-  set("gs",live.gs?Math.round(live.gs*1.852).toLocaleString("de-DE")+" km/h":"–");
-  set("el",dur(c.el));set("rem",c.remain>0?dur(c.remain):"gelandet");
-  set("dep","Start ca. "+fmtT(c.dep));set("arr","An ca. "+fmtT(c.arr));
-  const age=(Date.now()-lastOk)/1000;const lv=document.getElementById("live");
-  lv.classList.toggle("stale",age>30);document.getElementById("livetxt").textContent=age>30?`kein Signal seit ${Math.round(age/60)||1} min`:`live · aktualisiert ${fmtT(lastOk)}`;
-}
-function setStatus(t){const e=document.getElementById("status");if(e)e.textContent=t;}
-function render(){
-  const sc=scores(),r=S.round,rn=S.history.length+(r&&!r.revealed?1:0);
-  document.getElementById("score").innerHTML=`<div class="score"><div class="p h"><span class="name">Hendrik</span><span class="pts">${sc.H}</span></div>
-    <div class="mid"><span class="label">Runde</span><b>${rn||"–"}</b></div><div class="p t"><span class="name">Tyron</span><span class="pts">${sc.T}</span></div></div>`;
-  const app=document.getElementById("app");app.innerHTML="";
-  if(loading){app.appendChild($(`<div class="msg" id="status">Suche einen Flug, der gerade in der Luft ist …</div>`));return;}
-  if(loadErr){const m=$(`<div class="msg err">${esc(loadErr)}<div class="diag">${esc(DIAG.join("\n")||"keine Details")}</div></div>`);app.appendChild(m);}
-  if(!r){
-    if(!loadErr)app.appendChild($(`<div class="msg">Ein Flug wird live aus dem ADS-B-Netz gezogen: echte Position, echte Höhe, echtes Flugzeug. Beide tippen gleichzeitig auf den Typ.</div>`));
-    const b=$(`<button class="btn primary">Ersten Flug ziehen</button>`);b.onclick=newRound;app.appendChild(b);return;
+  const c=calc();
+  if(c&&live){
+    const alt=live.alt_baro==="ground"?"am Boden":live.alt_baro.toLocaleString("de-DE")+" ft";
+    const vr=live.baro_rate||0;
+    setTxt("alt",alt+(vr>500?" ↗":vr<-500?" ↘":""));
+    setTxt("gs",live.gs?Math.round(live.gs*1.852).toLocaleString("de-DE")+" km/h":"–");
+    setTxt("el",dur(c.el));setTxt("rem",c.remain>0?dur(c.remain):"gelandet");
+    setTxt("dep","ca. "+fmtT(c.dep));setTxt("arr","ca. "+fmtT(c.arr));
+    const f=document.getElementById("fill");if(f)f.style.width=c.pct+"%";
   }
+  const lv=document.getElementById("live");if(lastOk){const age=(Date.now()-lastOk)/1000;lv.classList.toggle("stale",age>40);
+    setTxt("livetxt",age>40?`Signal weg seit ${Math.max(1,Math.round(age/60))} min`:"Live");}
+}
+function dock(btns){const d=document.getElementById("dock"),i=document.getElementById("dockIn");i.innerHTML="";if(!btns.length){d.hidden=true;return;}d.hidden=false;btns.forEach(b=>i.appendChild(b));}
+function btn(cls,txt,fn,dis){const b=$(`<button class="${cls}">${txt}</button>`);b.onclick=fn;if(dis)b.disabled=true;return b;}
+function setStatus(t){setTxt("status",t);}
+
+function renderSetup(app){
+  document.getElementById("top").hidden=true;document.getElementById("score").innerHTML="";document.getElementById("mapcard").hidden=true;
+  const names=S.players||["Hendrik","Tyron"];
+  app.appendChild($(`<section class="card hero">
+    <div class="eyebrow">Live-Flugzeug-Quiz</div>
+    <h1>Flug&shy;duell</h1>
+    <p>Ein echter Flug, der gerade in der Luft ist. Beide tippen gleichzeitig, welcher Flugzeugtyp da fliegt.</p>
+    <div class="field" style="--c:var(--p1)"><i></i><input id="n1" maxlength="16" autocomplete="off" placeholder="Spieler 1" aria-label="Name Spieler 1" value="${esc(names[0])}"></div>
+    <div class="field" style="--c:var(--p2)"><i></i><input id="n2" maxlength="16" autocomplete="off" placeholder="Spieler 2" aria-label="Name Spieler 2" value="${esc(names[1])}"></div>
+    <ul class="rules">
+      <li><b>1</b><span>Erst per Freitext tippen, z. B. „A350“ oder „787“. Das Modell reicht.</span></li>
+      <li><b>2</b><span>Zu schwer? „3 Typen zeigen“ macht Multiple Choice daraus.</span></li>
+      <li><b>3</b><span>Richtig getippt gibt einen Punkt. Aufgelöst wird mit dem Typ vom Transponder.</span></li>
+    </ul>
+  </section>`));
+  dock([btn("cta","Spiel starten",()=>{
+    const a=document.getElementById("n1").value.trim()||"Spieler 1",b=document.getElementById("n2").value.trim()||"Spieler 2";
+    S={players:[a,b],history:[],round:null};save();newRound();})]);
+}
+function renderScore(){
+  const sc=scores(),r=S.round,rn=S.history.length+(r&&!r.revealed?1:0);const a=P(0),b=P(1);
+  document.getElementById("score").innerHTML=`<section class="card scorebar">
+    <div class="sp"><div class="av" style="background:${a.c}">${esc(a.name[0]||"?")}</div><div class="col"><span class="nm">${esc(a.name)}</span><span class="pt">${sc.p1}</span></div></div>
+    <div class="vs"><span>Runde</span><b>${rn||"–"}</b></div>
+    <div class="sp r"><div class="av" style="background:${b.c}">${esc(b.name[0]||"?")}</div><div class="col"><span class="nm">${esc(b.name)}</span><span class="pt">${sc.p2}</span></div></div></section>`;
+}
+function renderMenu(){
+  const m=document.getElementById("menu");m.hidden=!menuOpen;m.innerHTML="";if(!menuOpen)return;
+  const box=$(`<section class="card sheet"><div class="eyebrow">Spiel</div></section>`);
+  const row=$(`<div class="row"></div>`);
+  row.appendChild(btn("small","Neues Spiel / Namen",()=>{menuOpen=false;S.round=null;S.players=S.players;phase="setup";render();}));
+  if(!confirmReset)row.appendChild(btn("small danger","Punkte zurücksetzen",()=>{confirmReset=true;renderMenu();}));
+  else{row.appendChild(btn("small danger","Ja, alle Punkte löschen",()=>{S.history=[];confirmReset=false;menuOpen=false;save();render();}));row.appendChild(btn("small","Abbrechen",()=>{confirmReset=false;renderMenu();}));}
+  box.appendChild(row);m.appendChild(box);
+}
+document.getElementById("menuBtn").onclick=()=>{menuOpen=!menuOpen;confirmReset=false;renderMenu();};
+
+function render(){
+  const app=document.getElementById("app");app.innerHTML="";
+  if(!S.players||phase==="setup"){renderSetup(app);return;}
+  document.getElementById("top").hidden=false;renderScore();renderMenu();
+  const r=S.round;
+  if(phase==="loading"){
+    document.getElementById("mapcard").hidden=true;
+    app.appendChild($(`<section class="card loading"><div class="radar"></div><b id="status">Radar läuft …</b><span class="lbl">Suche einen Linienflug, der gerade in der Luft ist</span></section>`));
+    dock([btn("ghost","Abbrechen",()=>{searchCtl.cancelled=true;phase="idle";render();resetMap();})]);return;
+  }
+  if(phase==="error"){
+    document.getElementById("mapcard").hidden=true;
+    app.appendChild($(`<section class="card problem"><b>Kein Live-Flug gefunden</b><span class="lbl">Entweder sind die Live-Quellen gerade nicht erreichbar oder es passte kein Flug. Probier es nochmal. Wenn es wiederholt scheitert, schick Claude einen Screenshot dieser Details.</span><div class="diag">${esc(DIAG.join("\n")||"keine Details")}</div></section>`));
+    dock([btn("cta","Nochmal suchen",newRound)]);return;
+  }
+  if(!r){document.getElementById("mapcard").hidden=true;
+    app.appendChild($(`<section class="card loading"><div class="radar"></div><b>Bereit für den nächsten Flug</b></section>`));
+    dock([btn("cta","Flug ziehen",newRound)]);return;}
+
   const name=AL[r.al][0];
-  app.appendChild($(`<div class="strip"><div class="side"><span>${r.o.icao} · ${r.d.icao}</span></div><div class="body">
-    <div class="airline"><h1>${esc(name)}</h1><span class="fn">${esc(r.cs)}</span></div>
-    <div class="route">
-      <div class="ap"><span class="icao">${esc(r.o.icao)}</span><span class="city">${esc(r.o.location||"")}</span><span class="apname">${esc(r.o.name||"")}</span><span class="time" id="dep"></span></div>
-      <div class="arrow">→</div>
-      <div class="ap to"><span class="icao">${esc(r.d.icao)}</span><span class="city">${esc(r.d.location||"")}</span><span class="apname">${esc(r.d.name||"")}</span><span class="time" id="arr"></span></div>
+  app.appendChild($(`<section class="card flight">
+    <div class="fh"><h1>${esc(name)}</h1><span class="cs">${esc(r.cs)}</span></div>
+    <div class="rt">
+      <div class="ap"><span class="eyebrow">Von</span><span class="code">${esc(r.o.iata||r.o.icao)}</span><span class="city">${esc(r.o.location||"")}</span><span class="an">${esc(r.o.name||"")} · ${esc(r.o.icao)}</span><span class="tm" id="dep">–</span></div>
+      <div class="mid"><svg width="22" height="22" viewBox="0 0 24 24" style="transform:rotate(90deg)"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></div>
+      <div class="ap to"><span class="eyebrow">Nach</span><span class="code">${esc(r.d.iata||r.d.icao)}</span><span class="city">${esc(r.d.location||"")}</span><span class="an">${esc(r.d.name||"")} · ${esc(r.d.icao)}</span><span class="tm" id="arr">–</span></div>
     </div>
-    <div class="facts">
-      <div><span class="label">Seit Abflug</span><span class="v" id="el">–</span></div>
-      <div><span class="label">Bis Ziel</span><span class="v" id="rem">–</span></div>
-      <div><span class="label">Flughöhe</span><span class="v" id="alt">–</span></div>
-      <div><span class="label">Tempo</span><span class="v" id="gs">–</span></div>
+    <div class="bar"><div class="fill" id="fill" style="width:0"></div></div>
+    <div class="stats">
+      <div class="stat"><span class="eyebrow">Seit Abflug</span><span class="v" id="el">–</span></div>
+      <div class="stat"><span class="eyebrow">Bis zum Ziel</span><span class="v" id="rem">–</span></div>
+      <div class="stat"><span class="eyebrow">Flughöhe</span><span class="v" id="alt">–</span></div>
+      <div class="stat"><span class="eyebrow">Tempo</span><span class="v" id="gs">–</span></div>
     </div>
-    <div class="note">Position, Höhe und Tempo live per ADS-B. Zeiten in deiner Zeitzone, aus Live-Position berechnet.</div>
-  </div></div>`));
+    <span class="fine">Position, Höhe und Tempo live per ADS-B. Zeiten in deiner Zeitzone, aus der Live-Position berechnet.</span>
+  </section>`));
+
   if(!r.revealed){
-    const ctl=$(`<div class="row"></div>`);
-    const ob=$(`<button class="btn grow">${r.options?"3 Typen gezogen":"3 Typen zur Auswahl"}</button>`);ob.disabled=!!r.options;ob.onclick=drawOptions;ctl.appendChild(ob);
-    const sk=$(`<button class="btn quiet">Anderer Flug</button>`);sk.onclick=newRound;ctl.appendChild(sk);app.appendChild(ctl);
-    const pls=$(`<div class="players"></div>`);
-    for(const p of PLAYERS){
-      const el=$(`<div class="pl ${p.cls}"><h2>${p.name}</h2></div>`),g=r.guess[p.id];
-      if(g){el.appendChild($(`<div class="locked">Tipp abgegeben ✓<br>verdeckt</div>`));const u=$(`<button class="tiny">Tipp ändern</button>`);u.onclick=()=>unlock(p.id);el.appendChild(u);}
-      else if(r.mode[p.id]==="mc"&&r.options){el.appendChild($(`<span class="mode">Multiple Choice</span>`));
-        for(const t of r.options){const b=$(`<button class="opt">${t}</button>`);b.onclick=()=>pickOption(p.id,t);el.appendChild(b);}}
-      else{el.appendChild($(`<span class="mode">Freitext, z. B. A330 oder 787</span>`));
-        const inp=$(`<input id="in-${p.id}" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="Typ" aria-label="Tipp von ${p.name}">`);
-        inp.value=r.draft[p.id]||"";inp.oninput=()=>{r.draft[p.id]=inp.value;save();};inp.onkeydown=e=>{if(e.key==="Enter")lockText(p.id)};
-        el.appendChild(inp);el.appendChild($(`<span class="mode" id="err-${p.id}" hidden></span>`));
-        const b=$(`<button class="btn primary">Abgeben</button>`);b.onclick=()=>lockText(p.id);el.appendChild(b);}
-      pls.appendChild(el);
-    }
-    app.appendChild(pls);
-    const both=r.guess.H&&r.guess.T;const rv=$(`<button class="btn primary">${both?"Auflösen":"Auflösen (noch nicht alle getippt)"}</button>`);rv.onclick=reveal;app.appendChild(rv);
+    const hb=btn("hintbtn",r.options?"3 Typen zur Auswahl gezogen":"3 Typen zeigen",drawOptions,!!r.options);app.appendChild(hb);
+    const g=$(`<div class="guesses"></div>`);
+    PIDS.forEach((pid,i)=>{const p=P(i);
+      const el=$(`<section class="card gc" style="--c:${p.c};--cs:${p.cs}"><div class="who"><i></i><span>${esc(p.name)}</span></div></section>`);
+      if(r.guess[pid]){el.appendChild($(`<div class="done"><span class="ck">✓</span>Tipp verdeckt abgegeben</div>`));el.appendChild(btn("link","Tipp ändern",()=>unlock(pid)));}
+      else if(r.mode[pid]==="mc"&&r.options){el.appendChild($(`<span class="lbl">Wähle einen Typ</span>`));for(const t of r.options)el.appendChild(btn("opt",t,()=>pickOption(pid,t)));}
+      else{el.appendChild($(`<span class="lbl">Freitext, z. B. A330</span>`));
+        const inp=$(`<input id="in-${pid}" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="Typ" aria-label="Tipp von ${esc(p.name)}">`);
+        inp.value=r.draft[pid]||"";inp.oninput=()=>{r.draft[pid]=inp.value;save();};inp.onkeydown=e=>{if(e.key==="Enter")lockText(pid)};
+        el.appendChild(inp);el.appendChild($(`<span class="err" id="err-${pid}" hidden></span>`));el.appendChild(btn("go","Abgeben",()=>lockText(pid)));}
+      g.appendChild(el);});
+    app.appendChild(g);
+    const both=r.guess.p1&&r.guess.p2;
+    dock([btn("ghost","Anderer Flug",newRound),btn("cta",both?"Auflösen":"Auflösen (1 Tipp fehlt)",reveal,!(r.guess.p1||r.guess.p2))]);
   }else{
     const h=S.history.at(-1);
-    const box=$(`<div class="reveal"><span class="label">Flugzeugtyp laut Transponder</span><span class="ans">${NAMES[h.answer]}</span>
-      <span class="note">${esc(SUB[r.type]||r.type)} · Kennzeichen ${esc(r.reg||"unbekannt")} · <a href="https://www.flightradar24.com/${esc(r.cs)}" target="_blank" rel="noopener">auf Flightradar24 ansehen</a></span></div>`);
+    const box=$(`<section class="card reveal"><span class="eyebrow">Laut Transponder</span><span class="ty">${NAMES[h.answer]}</span>
+      <span class="sub">${esc(SUB[r.type]||r.type)} · ${esc(r.reg||"Kennzeichen unbekannt")}</span></section>`);
     const res=$(`<div class="res"></div>`);
-    for(const p of PLAYERS){const g=h.guess[p.id],ok=g===h.answer;
-      res.appendChild($(`<div class="${ok?"ok":"bad"}"><b>${p.name}</b>${g?esc(g):"kein Tipp"} · ${ok?"+1 Punkt":"0 Punkte"}${h.mode[p.id]==="mc"?" · MC":""}</div>`));}
-    box.appendChild(res);app.appendChild(box);
-    const nb=$(`<button class="btn primary">Nächster Flug</button>`);nb.onclick=newRound;app.appendChild(nb);
+    PIDS.forEach((pid,i)=>{const p=P(i),gu=h.guess[pid],ok=gu===h.answer;
+      res.appendChild($(`<div class="${ok?"ok":"bad"}"><b>${esc(p.name)}</b>${gu?esc(gu):"kein Tipp"}${h.mode[pid]==="mc"?" (Auswahl)":""}<br><em>${ok?"+1 Punkt":"daneben"}</em></div>`));});
+    box.appendChild(res);
+    box.appendChild($(`<span class="fine"><a href="https://www.flightradar24.com/${esc(r.cs)}" target="_blank" rel="noopener">Auf Flightradar24 ansehen</a></span>`));
+    app.appendChild(box);
+    dock([btn("cta","Nächster Flug",newRound)]);
   }
-  const foot=$(`<div class="confirm"></div>`);
-  if(!confirmReset){const b=$(`<button class="tiny">Spielstand zurücksetzen</button>`);b.onclick=()=>{confirmReset=true;render();};foot.appendChild(b);}
-  else{foot.appendChild($(`<span>Alle Punkte löschen?</span>`));const y=$(`<button class="btn quiet">Ja, löschen</button>`);y.onclick=()=>{S={history:[],round:null};confirmReset=false;save();location.reload();};
-    const n=$(`<button class="btn quiet">Abbrechen</button>`);n.onclick=()=>{confirmReset=false;render();};foot.append(y,n);}
-  app.appendChild(foot);
   updateFacts();
 }
-load();render();
-if(S.round&&S.round.hex){resetMap();poll();}
+load();
+if(!S.players)phase="setup";
+render();
+if(S.round&&S.round.hex&&phase!=="setup"){resetMap();poll();}
 </script>
 </body>
 </html>
