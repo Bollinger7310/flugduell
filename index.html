@@ -258,9 +258,9 @@ const SRC=[
  ["adsb.lol",(la,lo,r)=>`https://api.adsb.lol/v2/point/${la}/${lo}/${r}`,h=>`https://api.adsb.lol/v2/hex/${h}`],
  ["adsb.fi",(la,lo,r)=>`https://opendata.adsb.fi/api/v2/lat/${la}/lon/${lo}/dist/${r}`,h=>`https://opendata.adsb.fi/api/v2/hex/${h}`],
  ["airplanes.live",(la,lo,r)=>`https://api.airplanes.live/v2/point/${la}/${lo}/${r}`,h=>`https://api.airplanes.live/v2/hex/${h}`]];
-const VIA=[["direkt",u=>u],["corsproxy.io",u=>"https://corsproxy.io/?url="+encodeURIComponent(u)],
- ["codetabs",u=>"https://api.codetabs.com/v1/proxy/?quest="+encodeURIComponent(u)],
- ["allorigins",u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u)]];
+// Eigene Cloudflare-Weiterleitung zuerst, direkt als Reserve
+const PROXY="https://flugduell-proxy.hendrik-bollinger.workers.dev/?url=";
+const VIA=[["Cloudflare",u=>PROXY+encodeURIComponent(u)],["direkt",u=>u]];
 let DIAG=[];const note=m=>{DIAG.push(m);if(DIAG.length>80)DIAG.shift();};
 const errTxt=e=>e.name==="AbortError"?"Zeitüberschreitung":/Load failed|Failed to fetch|NetworkError/.test(e.message)?"blockiert":e.message;
 let best=null; // {s,v} letzte funktionierende Kombination
