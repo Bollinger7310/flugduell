@@ -1,7 +1,9 @@
 // Cloudflare Worker: reicht Live-Flugdaten mit CORS-Freigabe an die Flugduell-App weiter
 const ALLOW = ["api.adsb.lol", "opendata.adsb.fi", "api.airplanes.live", "api.adsbdb.com", "api.planespotters.net", "globe.adsb.lol"];
+// Nur die eigene App darf die Weiterleitung nutzen
+const ORIGINS = ["https://bollinger7310.github.io"];
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Vary": "Origin",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
@@ -15,11 +17,14 @@ function ttlFor(url) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export default {
   async fetch(req) {
-    if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+    const origin = req.headers.get("Origin") || "";
+    if (!ORIGINS.includes(origin)) return new Response("forbidden", { status: 403 });
+    const cors = { ...CORS, "Access-Control-Allow-Origin": origin };
+    if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const raw = new URL(req.url).searchParams.get("url");
     let target;
-    try { target = new URL(raw); } catch { return new Response("bad url", { status: 400, headers: CORS }); }
-    if (!ALLOW.includes(target.hostname)) return new Response("forbidden", { status: 403, headers: CORS });
+    try { target = new URL(raw); } catch { return new Response("bad url", { status: 400, headers: cors }); }
+    if (!ALLOW.includes(target.hostname)) return new Response("forbidden", { status: 403, headers: cors });
     const isPost = req.method === "POST";
     const body = isPost ? await req.text() : undefined;
     let res;
@@ -35,7 +40,7 @@ export default {
     }
     return new Response(res.body, {
       status: res.status,
-      headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
+      headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   },
 };
