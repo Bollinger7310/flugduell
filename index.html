@@ -65,12 +65,14 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
   border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;box-shadow:var(--shadow)}
 .chip.live{top:12px;left:12px}
 .chip.center{top:12px;right:12px;cursor:pointer}
+.chip.style{bottom:24px;right:12px;cursor:pointer}
+#map{background:#1f2328}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 2s infinite}
 .stale .dot{background:var(--bad);animation:none}
 @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 60%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
 .plane-ic{color:var(--accent)}
 .plane-ic svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
-.ap-ic{width:12px;height:12px;border-radius:50%;background:var(--card);border:3px solid var(--ink)}
+.ap-ic{width:12px;height:12px;border-radius:50%;background:#1a1a1a;border:3px solid #fff}
 .leaflet-tooltip.apt{background:var(--ink);color:var(--card);border:0;border-radius:8px;font:600 11px var(--f-mono);padding:3px 7px;box-shadow:none}
 .leaflet-tooltip.apt:before{display:none}
 .leaflet-container{font-family:var(--f-body)}
@@ -177,6 +179,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
     <div id="map"></div>
     <div class="chip live" id="live"><span class="dot"></span><span id="livetxt">live</span></div>
     <button class="chip center" id="center">Zentrieren</button>
+    <button class="chip style" id="styleBtn">Satellit</button>
   </section>
   <main id="app" class="wrap" style="gap:14px"></main>
 </div>
@@ -348,7 +351,7 @@ async function newRound(){
   if(searchCtl.cancelled){phase="idle";render();return;}
   if(!f){phase="error";render();return;}
   phase="idle";
-  S.round={...f,ac:undefined,options:null,guess:{p1:null,p2:null},mode:{p1:"text",p2:"text"},draft:{p1:"",p2:""},revealed:false,trail:[[f.ac.lat,f.ac.lon]]};
+  S.round={...f,ac:undefined,options:null,guess:{p1:null,p2:null},mode:{p1:"text",p2:"text"},draft:{p1:"",p2:""},revealed:false,trail:[[f.ac.lat,f.ac.lon,f.ac.alt_baro]]};
   live=f.ac;lastOk=Date.now();save();render();resetMap();
 }
 function drawOptions(){
@@ -369,15 +372,31 @@ function unlock(pid){S.round.guess[pid]=null;save();render();}
 function reveal(){const r=S.round;r.revealed=true;S.history.push({hex:r.hex,cs:r.cs,answer:TYPE[r.type],guess:{...r.guess},mode:{...r.mode}});save();render();}
 
 // ===================== Karte =====================
-let map,layers=[],planeMk,trailLn,tiles;
+let map,layers=[],planeMk,trailGrp,tiles;
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const PLANE_SVG=a=>`<svg width="34" height="34" viewBox="0 0 24 24" style="transform:rotate(${a}deg)"><path fill="currentColor" stroke="#fff" stroke-width=".7" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>`;
+const PLANE_SVG=a=>`<svg width="36" height="36" viewBox="0 0 24 24" style="transform:rotate(${a}deg)"><path fill="#FFC21A" stroke="#1a1a1a" stroke-width=".8" stroke-linejoin="round" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>`;
 function initMap(){
   if(map||!window.L)return;
   map=L.map("map",{zoomControl:false,attributionControl:true});
-  const dark=matchMedia("(prefers-color-scheme: dark)").matches;
-  tiles=L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark?"dark_all":"rastertiles/voyager"}/{z}/{x}/{y}{r}.png`,{maxZoom:12,subdomains:"abcd",
-    attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>'}).addTo(map);
+  setTiles();
+}
+const ESRI="https://server.arcgisonline.com/ArcGIS/rest/services/";
+function setTiles(){
+  if(!map)return;tiles&&tiles.forEach(t=>map.removeLayer(t));
+  const sat=S.mapStyle==="sat",att='Tiles © <a href="https://www.esri.com/">Esri</a>';
+  const urls=sat?[ESRI+"World_Imagery/MapServer/tile/{z}/{y}/{x}",ESRI+"Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"]
+    :[ESRI+"Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",ESRI+"Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"];
+  tiles=urls.map((u,i)=>L.tileLayer(u,{maxZoom:16,attribution:i?"":att}).addTo(map));
+  tiles.forEach(t=>t.bringToBack());
+  setTxt("styleBtn",sat?"Karte":"Satellit");
+}
+function altColor(a){if(a==null)return "#9aa4b2";const h=55+Math.min(Math.max(a,0),41000)/41000*230;return `hsl(${h},95%,58%)`;}
+function drawTrail(){
+  if(!map||!S.round)return;trailGrp&&map.removeLayer(trailGrp);trailGrp=L.layerGroup().addTo(map);
+  const ref=gc([S.round.o.lat,S.round.o.lon],[S.round.d.lat,S.round.d.lon])[0][1];
+  const pts=unwrap(S.round.trail,ref);
+  for(let i=1;i<pts.length;i++)L.polyline([pts[i-1],pts[i]],{color:altColor(S.round.trail[i][2]),weight:4,lineCap:"round"}).addTo(trailGrp);
+  return pts;
 }
 function resetMap(){
   const r=S.round;const mc=document.getElementById("mapcard");
@@ -386,21 +405,20 @@ function resetMap(){
   map.invalidateSize();
   layers.forEach(l=>map.removeLayer(l));layers=[];
   const line=gc([r.o.lat,r.o.lon],[r.d.lat,r.d.lon]),ref=line[0][1];
-  layers.push(L.polyline(line,{color:css("--muted"),weight:2,dashArray:"2 7",lineCap:"round"}).addTo(map));
+  layers.push(L.polyline(line,{color:"#ffffff",opacity:.55,weight:2,dashArray:"2 7",lineCap:"round"}).addTo(map));
   const apIcon=L.divIcon({className:"",html:'<div class="ap-ic"></div>',iconSize:[18,18],iconAnchor:[9,9]});
   layers.push(L.marker(line[0],{icon:apIcon}).bindTooltip(r.o.iata||r.o.icao,{permanent:true,direction:"top",offset:[0,-8],className:"apt"}).addTo(map));
   layers.push(L.marker(line.at(-1),{icon:apIcon}).bindTooltip(r.d.iata||r.d.icao,{permanent:true,direction:"top",offset:[0,-8],className:"apt"}).addTo(map));
-  trailLn=L.polyline(unwrap(r.trail||[],ref),{color:css("--accent"),weight:4,lineCap:"round"}).addTo(map);layers.push(trailLn);
-  const last=unwrap(r.trail,ref).at(-1);
-  planeMk=L.marker(last,{icon:L.divIcon({className:"plane-ic",html:PLANE_SVG(live?.track||0),iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:1000}).addTo(map);layers.push(planeMk);
+  const last=drawTrail().at(-1);
+  planeMk=L.marker(last,{icon:L.divIcon({className:"plane-ic",html:PLANE_SVG(live?.track||0),iconSize:[36,36],iconAnchor:[18,18]}),zIndexOffset:1000}).addTo(map);layers.push(planeMk);
   map.fitBounds(L.latLngBounds(line.concat([last])),{padding:[36,36]});
 }
 function updatePlane(){
   if(!map||!planeMk||!live||!S.round)return;
-  const ref=gc([S.round.o.lat,S.round.o.lon],[S.round.d.lat,S.round.d.lon])[0][1];
-  const pts=unwrap(S.round.trail,ref);trailLn.setLatLngs(pts);
-  planeMk.setLatLng(pts.at(-1));planeMk.setIcon(L.divIcon({className:"plane-ic",html:PLANE_SVG(live.track||0),iconSize:[34,34],iconAnchor:[17,17]}));
+  const pts=drawTrail();
+  planeMk.setLatLng(pts.at(-1));planeMk.setIcon(L.divIcon({className:"plane-ic",html:PLANE_SVG(live.track||0),iconSize:[36,36],iconAnchor:[18,18]}));
 }
+document.getElementById("styleBtn").onclick=()=>{S.mapStyle=S.mapStyle==="sat"?"map":"sat";save();setTiles();};
 document.getElementById("center").onclick=()=>{if(map&&planeMk)map.setView(planeMk.getLatLng(),Math.max(map.getZoom(),7));};
 
 // ===================== Live-Abfrage =====================
@@ -410,7 +428,7 @@ async function poll(){
   polling=true;
   try{const d=await adsbAny(2,r.hex);const ac=d.ac[0];
     if(ac&&ac.lat!=null){live=ac;lastOk=Date.now();const last=r.trail.at(-1);
-      if(!last||dist(last,[ac.lat,ac.lon])>1){r.trail.push([ac.lat,ac.lon]);if(r.trail.length>800)r.trail.shift();save();}
+      if(!last||dist(last,[ac.lat,ac.lon])>1){r.trail.push([ac.lat,ac.lon,typeof ac.alt_baro==="number"?ac.alt_baro:null]);if(r.trail.length>800)r.trail.shift();save();}
       updatePlane();}
   }catch(e){}
   polling=false;updateFacts();
@@ -467,7 +485,7 @@ function renderSetup(app){
   </section>`));
   dock([btn("cta","Spiel starten",()=>{
     const a=document.getElementById("n1").value.trim()||"Spieler 1",b=document.getElementById("n2").value.trim()||"Spieler 2";
-    S={players:[a,b],history:[],round:null};save();newRound();})]);
+    S={players:[a,b],history:[],round:null,mapStyle:S.mapStyle};save();newRound();})]);
 }
 function renderScore(){
   const sc=scores(),r=S.round,rn=S.history.length+(r&&!r.revealed?1:0);const a=P(0),b=P(1);
