@@ -32,7 +32,9 @@ export default {
       res = await fetch(target, {
         method: isPost ? "POST" : "GET",
         body,
-        headers: { "Content-Type": "application/json", "User-Agent": "flugduell/1.1 (private quiz app)", "Accept": "application/json" },
+        headers: target.hostname === "globe.adsb.lol"
+          ? { "User-Agent": "Mozilla/5.0 (flugduell private quiz)", "Accept": "application/json, */*", "Referer": "https://globe.adsb.lol/", "Accept-Encoding": "gzip" }
+          : { "Content-Type": "application/json", "User-Agent": "flugduell/1.1 (private quiz app)", "Accept": "application/json" },
         cf: isPost ? undefined : { cacheTtl: ttlFor(target), cacheEverything: true },
       });
       if (res.status !== 429 && res.status < 500) break;

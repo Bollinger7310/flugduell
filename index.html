@@ -518,24 +518,31 @@ function drawTrail(){
   r._ahead=ahead;
   return pts;
 }
+function setTraceNote(t){const e=document.getElementById("tracenote");if(e){e.textContent=t||"";e.hidden=!t;}}
 // ---------- Bisheriger Flugweg aus dem ADS-B-Verlauf ----------
 async function loadTrace(r){
   try{
-    const h=r.hex.toLowerCase(),u=`https://globe.adsb.lol/data/traces/${h.slice(-2)}/trace_full_${h}.json`;
-    const d=await getJSON(PROXY+encodeURIComponent(u),12000);
-    if(!d||!Array.isArray(d.trace)||!d.trace.length)return;
+    const h=r.hex.toLowerCase().replace(/^~/,"");let d=null,why="";
+    setTraceNote("Flugverlauf wird geladen …");
+    for(const kind of ["full","recent"]){
+      const u=`https://globe.adsb.lol/data/traces/${h.slice(-2)}/trace_${kind}_${h}.json`;
+      try{d=await getJSON(PROXY+encodeURIComponent(u),12000);if(d&&Array.isArray(d.trace)&&d.trace.length)break;why=kind+": leer";d=null;}
+      catch(e){why=kind+": "+errTxt(e);}
+    }
+    if(!d){r.traceNote="Flugverlauf nicht verfügbar ("+why+")";setTraceNote(r.traceNote);return;}
     const pts=d.trace.map(p=>[(d.timestamp+p[0])*1000,p[1],p[2],p[3]]).filter(p=>p[1]!=null&&p[2]!=null);
     let start=0;
     for(let i=1;i<pts.length;i++){if(pts[i-1][3]==="ground"||pts[i][0]-pts[i-1][0]>30*60000)start=i;}
-    const leg=pts.slice(start);if(leg.length<2)return;
+    const leg=pts.slice(start);if(leg.length<2){r.traceNote="Flugverlauf zu kurz";setTraceNote(r.traceNote);return;}
     if(G()&&G().round!==r)return;
     const nearO=dist([leg[0][1],leg[0][2]],[r.o.lat,r.o.lon])<40;
     r.depTime=nearO?leg[0][0]:null;
     const step=Math.max(1,Math.ceil(leg.length/500));
     const tr=leg.filter((p,i)=>i%step===0||i===leg.length-1).map(p=>[p[1],p[2],typeof p[3]==="number"?p[3]:null]);
     const lastLive=r.trail.at(-1);if(lastLive)tr.push(lastLive);
-    r.trail=tr;r.traced=true;save();mapKey=null;if(phase==="game")showMap(true);tick();
-  }catch(e){note("Verlauf: "+errTxt(e));}
+    r.trail=tr;r.traced=true;r.traceNote=r.depTime?"":"Verlauf beginnt nicht am Abflughafen, Startzeit geschätzt";
+    save();mapKey=null;if(phase==="game")showMap(true);setTraceNote(r.traceNote);tick();
+  }catch(e){r.traceNote="Flugverlauf: "+errTxt(e);setTraceNote(r.traceNote);}
 }
 let mapKey=null;
 function showMap(on){
@@ -681,7 +688,7 @@ function renderFlight(below,r){
       <div><span class="cap">Bis Ziel</span><span class="v" id="rem">–</span></div>
       <div><span class="cap">Höhe</span><span class="v" id="alt">–</span></div>
       <div><span class="cap">Tempo</span><span class="v" id="gs">–</span></div>
-    </div></section>`));
+    </div><span class="fine" id="tracenote" style="margin-top:12px" ${r.traceNote?"":"hidden"}>${esc(r.traceNote||"")}</span></section>`));
 }
 function renderGuesses(below,r){
   const g=G(),solo=g.mode==="solo";
