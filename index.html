@@ -10,6 +10,9 @@
 <meta name="theme-color" content="#F3F4F6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#080B0F" media="(prefers-color-scheme: dark)">
 <title>Flugduell</title>
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-512.png">
+<link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
@@ -201,6 +204,32 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .cta{flex:1;padding:17px;border-radius:16px;background:var(--cta);color:var(--cta-ink);font-weight:600;font-size:16px;letter-spacing:-.01em}
 .cta:disabled{opacity:.35}
 .sec{padding:17px 18px;border-radius:16px;background:var(--surface);border:1px solid var(--line);font-weight:500;color:var(--ink-2)}
+.seg.three{grid-template-columns:repeat(3,1fr)}
+.rules{padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:13px;color:var(--muted)}
+.rules b{font:600 13px var(--m);color:var(--signal);text-align:right}
+.photo{margin:0 -18px;position:relative;background:var(--raised);aspect-ratio:3/2;overflow:hidden}
+.photo img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .4s}
+.photo img.in{opacity:1}
+.photo .credit{position:absolute;left:0;right:0;bottom:0;padding:18px 12px 8px;font-size:10.5px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.6))}
+.photo .credit a{color:#fff;text-decoration:none}
+.photo .none{position:absolute;inset:0;display:grid;place-items:center;font-size:12.5px;color:var(--faint)}
+.final{padding:24px 18px 8px;display:flex;flex-direction:column;gap:6px}
+.final h1{margin:6px 0 0;font-weight:600;font-size:36px;letter-spacing:-.035em;line-height:1.05;text-wrap:balance}
+.final p{margin:4px 0 0;color:var(--muted)}
+.stats{display:grid;grid-template-columns:1fr repeat(var(--n),auto);font-size:13.5px}
+.stats>*{padding:11px 16px;border-top:1px solid var(--line)}
+.stats .h{border-top:0;font-size:12px;color:var(--muted)}
+.stats .n{font:500 14px var(--m);text-align:right}
+.stats .tot{font-weight:600;font-size:16px}
+.rounds{display:flex;flex-direction:column}
+.rd{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;padding:11px 16px;font-size:13.5px}
+.rd+.rd{border-top:1px solid var(--line)}
+.rd .i{font:500 12px var(--m);color:var(--faint)}
+.rd .rt{font:400 12px var(--m);color:var(--muted)}
+.rd .pp{display:flex;gap:6px}
+.rd .pp span{font:600 11.5px var(--m);padding:3px 7px;border-radius:6px}
+.rd .pp .y{background:var(--ok-soft);color:var(--ok)}
+.rd .pp .n{background:var(--raised);color:var(--faint)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -383,17 +412,28 @@ const fleetIn=(al,cat)=>AL[al][1].filter(t=>inCat(t,cat));
 // ===================== Zustand =====================
 const KEY="flugduell-v3";let S;
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
-  if(!S)S={setup:{mode:"duo",cat:"all",names:["Player 1","Player 2"]},game:null,mapStyle:"map"};}
+  if(!S)S={setup:{mode:"duo",cat:"all",rounds:10,names:["Player 1","Player 2"]},game:null,mapStyle:"map"};
+  if(S.setup.rounds===undefined)S.setup.rounds=10;}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const G=()=>S.game;
 const pids=()=>G().players.map((_,i)=>"p"+(i+1));
-function scores(){const s={};pids().forEach(p=>s[p]=0);for(const r of G().history)for(const p of pids())if(r.guess[p]===r.answer)s[p]++;return s;}
+const ptsOf=(r,p)=>r.pts?r.pts[p]||0:(r.guess[p]===r.answer?1:0);
+function scores(){const s={};pids().forEach(p=>s[p]=0);for(const r of G().history)for(const p of pids())s[p]+=ptsOf(r,p);return s;}
+function hits(p){return G().history.filter(r=>r.guess[p]===r.answer).length;}
+const isOver=()=>G().rounds&&G().history.length>=G().rounds&&(!G().round||G().round.revealed);
+// Genaues Submodell erkannt? (z. B. A350-1000, 77W, 737 MAX 8)
+function exactSub(raw,code){
+  if(!raw||!SUB[code])return false;
+  const clean=x=>x.toUpperCase().replace(/AIRBUS|BOEING|[\s\-_.]/g,"");
+  const s=clean(raw),sub=clean(SUB[code]);
+  return [code,sub,"B"+sub,sub.replace(/^A/,""),code.replace(/^B/,"")].includes(s);
+}
 function streak(){let n=0;for(const r of [...G().history].reverse()){if(r.guess.p1===r.answer)n++;else break;}return n;}
 let live=null,lastOk=0,phase="menu";
 
 function startGame(){
   const st=S.setup,names=st.mode==="solo"?[st.names[0]]:st.names.slice(0,2);
-  S.game={mode:st.mode,cat:st.cat,players:names.map((n,i)=>n.trim()||`Player ${i+1}`),history:[],round:null};
+  S.game={mode:st.mode,cat:st.cat,rounds:st.rounds||0,players:names.map((n,i)=>n.trim()||`Player ${i+1}`),history:[],round:null};
   save();phase="game";newRound();
 }
 async function newRound(){
@@ -419,11 +459,38 @@ function drawOptions(){
 }
 function lockText(pid){const raw=document.getElementById("in-"+pid).value;const m=normalize(raw);
   if(!m){const e=document.getElementById("err-"+pid);e.textContent="Typ nicht erkannt. Beispiele: A330, 787, B77W";e.hidden=false;return;}
-  G().round.guess[pid]=m;save();afterGuess();}
+  const r=G().round;r.guess[pid]=m;r.raw=r.raw||{};r.raw[pid]=raw.trim();save();afterGuess();}
 function pickOption(pid,t){G().round.guess[pid]=t;G().round.mode[pid]="mc";save();afterGuess();}
 function afterGuess(){if(G().mode==="solo")reveal();else render();}
 function unlock(pid){G().round.guess[pid]=null;save();render();}
-function reveal(){const r=G().round;r.revealed=true;G().history.push({hex:r.hex,cs:r.cs,answer:TYPE[r.type],guess:{...r.guess},mode:{...r.mode}});save();render();}
+function reveal(){
+  const r=G().round,ans=TYPE[r.type],pts={},bonus={};
+  for(const p of pids()){const ok=r.guess[p]===ans,mc=r.mode[p]==="mc";bonus[p]=ok&&!mc&&exactSub(r.raw&&r.raw[p],r.type);pts[p]=ok?(mc?1:2)+(bonus[p]?1:0):0;}
+  r.revealed=true;
+  G().history.push({hex:r.hex,cs:r.cs,type:r.type,reg:r.reg,o:r.o.iata||r.o.icao,d:r.d.iata||r.d.icao,answer:ans,guess:{...r.guess},mode:{...r.mode},pts,bonus});
+  save();render();loadPhoto(r);
+}
+// ---------- Foto (Planespotters.net) ----------
+const photoCache={};
+async function loadPhoto(r){
+  const key=r.hex;if(photoCache[key]===undefined){
+    photoCache[key]=null;
+    try{
+      const urls=[`https://api.planespotters.net/pub/photos/hex/${r.hex}`];if(r.reg)urls.push(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(r.reg)}`);
+      for(const u of urls){const res=await race(VIA.map(v=>({url:v[1](u),label:"Foto über "+v[0]})),9000);const p=res.d&&res.d.photos&&res.d.photos[0];
+        if(p){photoCache[key]={src:(p.thumbnail_large||p.thumbnail).src,link:p.link,by:p.photographer};break;}}
+    }catch(e){}
+    if(!photoCache[key])photoCache[key]=false;
+  }
+  paintPhoto(key);
+}
+function paintPhoto(key){
+  const box=document.getElementById("photo");if(!box)return;const p=photoCache[key];
+  if(p===undefined||p===null){box.innerHTML='<div class="none">Foto wird geladen …</div>';return;}
+  if(!p){box.innerHTML='<div class="none">Kein Foto dieser Maschine gefunden</div>';return;}
+  box.innerHTML=`<img alt="Foto der Maschine" referrerpolicy="no-referrer"><div class="credit">© ${esc(p.by||"Fotograf")} · <a href="${esc(p.link)}" target="_blank" rel="noopener">Planespotters.net</a></div>`;
+  const img=box.querySelector("img");img.onload=()=>img.classList.add("in");img.src=p.src;
+}
 
 // ===================== Karte =====================
 let map,layers=[],planeMk,trailGrp,tiles;
@@ -525,6 +592,7 @@ function render(){
   if(phase==="error"){showMap(false);
     below.appendChild($(`<section class="panel problem"><b>Kein Live-Flug gefunden</b><span>Die Live-Quellen sind gerade nicht erreichbar oder es passte kein Flug. Versuch es nochmal. Wenn es wiederholt scheitert, schick Claude einen Screenshot dieser Details.</span><div class="diag">${esc(DIAG.join("\n")||"keine Details")}</div></section>`));
     dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Nochmal suchen",newRound)]);return;}
+  if(phase==="final"){showMap(false);renderFinal(below);return;}
   const r=G().round;if(!r){dock([btn("cta","Flug ziehen",newRound)]);return;}
   showMap(true);renderFlight(below,r);
   if(!r.revealed)renderGuesses(below,r);else renderVerdict(below,r);
@@ -534,7 +602,7 @@ function renderMenu(root){
   const st=S.setup,g=S.game;
   root.appendChild($(`<div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 24 24">${PLANE_PATH}</svg>Flugduell</div><div class="status"><i></i>Live-ADS-B</div></div>`));
   root.appendChild($(`<div class="intro"><h1>Welcher Jet fliegt <em>gerade</em> da oben?</h1><p>Ein echter Flug, live vom Transponder. Route, Höhe und Airline sind bekannt, den Flugzeugtyp musst du erkennen.</p></div>`));
-  if(g&&g.round){const sc=scores(),txt=g.mode==="solo"?`${sc.p1} von ${g.history.length} richtig`:`${g.players[0]} ${sc.p1} : ${sc.p2} ${g.players[1]}`;
+  if(g&&g.round&&!g.finished){const sc=scores(),txt=g.mode==="solo"?`${sc.p1} Punkte nach ${g.history.length} Runden`:`${g.players[0]} ${sc.p1} : ${sc.p2} ${g.players[1]}`;
     const b=$(`<button class="panel resume"><div><b>Spiel fortsetzen</b><div class="s">${esc(txt)} · ${CATS[g.cat].t}</div></div><span class="go">Weiter →</span></button>`);
     b.onclick=()=>{phase="game";render();if(!live)poll();};root.appendChild(b);}
   const mg=$(`<div class="group"><div class="cap">Spieler</div></div>`);
@@ -553,22 +621,28 @@ function renderMenu(root){
   ["long","short","all"].forEach(k=>{const b=$(`<button class="opt-row" role="radio" aria-checked="${st.cat===k}"><span class="ic">${ICON[k]}</span><span><div class="t">${CATS[k].t}</div><div class="d">${CATS[k].d}</div></span><span class="radio"></span></button>`);
     b.onclick=()=>{st.cat=k;save();render();};cl.appendChild(b);});
   cg.appendChild(cl);root.appendChild(cg);
-  dock([btn("cta",g&&g.round?"Neues Spiel starten":"Spiel starten",()=>{startGame();})]);
+  const lg=$(`<div class="group"><div class="cap">Matchlänge</div></div>`),ls=$(`<div class="seg three" role="group" aria-label="Matchlänge"></div>`);
+  [[5,"5 Runden","kurz"],[10,"10 Runden","Standard"],[0,"Endlos","frei spielen"]].forEach(([k,t,s2])=>{
+    const b=$(`<button aria-pressed="${st.rounds===k}">${t}<small>${s2}</small></button>`);b.onclick=()=>{st.rounds=k;save();render();};ls.appendChild(b);});
+  lg.appendChild(ls);root.appendChild(lg);
+  const rg=$(`<div class="group"><div class="cap">Punkte</div><div class="panel rules"><b>+2</b><span>Richtiges Modell per Freitext</span><b>+1</b><span>Richtig per Auswahl aus drei Typen</span><b>+1</b><span>Bonus: genaues Submodell im Freitext, z. B. A350-1000 oder 777-300ER</span></div></div>`);
+  root.appendChild(rg);
+  dock([btn("cta",g&&g.round&&!g.finished?"Neues Spiel starten":"Spiel starten",()=>{startGame();})]);
 }
 function renderHead(root){
   const g=G(),sc=scores();
   const bar=$(`<div class="bar"></div>`);
   bar.appendChild(btn("back",`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>Menü`,()=>{phase="menu";render();}));
   bar.appendChild($(`<span class="tag">${g.mode==="solo"?"Solo":"1 vs 1"} · ${CATS[g.cat].t}</span>`));root.appendChild(bar);
-  const rn=g.history.length+(g.round&&!g.round.revealed?1:0);
-  if(g.mode==="solo"){const n=g.history.length,pct=n?Math.round(sc.p1/n*100):0;
+  const rn=g.history.length+(g.round&&!g.round.revealed?1:0),rlabel=g.rounds?`${Math.max(rn,1)}/${g.rounds}`:(rn||"–");
+  if(g.mode==="solo"){const n=g.history.length,pct=n?Math.round(hits("p1")/n*100):0;
     root.appendChild($(`<section class="panel board solo">
-      <div class="cell" style="--c:${PCOL[0]}"><span class="nm"><i></i><span>${esc(g.players[0])}</span></span><span class="v">${sc.p1}<span style="color:var(--faint);font-size:17px">/${n}</span></span></div>
-      <div class="cell"><span class="nm">Quote</span><span class="v">${n?pct+"%":"–"}</span></div>
-      <div class="cell r"><span class="nm">Serie</span><span class="v">${streak()}</span></div></section>`));}
+      <div class="cell" style="--c:${PCOL[0]}"><span class="nm"><i></i><span>${esc(g.players[0])}</span></span><span class="v">${sc.p1}</span></div>
+      <div class="cell"><span class="nm">Runde</span><span class="v">${rlabel}</span></div>
+      <div class="cell r"><span class="nm">Treffer · Serie</span><span class="v">${n?pct+"%":"–"}<span style="color:var(--faint);font-size:15px"> · ${streak()}</span></span></div></section>`));}
   else root.appendChild($(`<section class="panel board">
       <div class="cell" style="--c:${PCOL[0]}"><span class="nm"><i></i><span>${esc(g.players[0])}</span></span><span class="v">${sc.p1}</span></div>
-      <div class="cell mid"><span class="nm">Runde</span><span class="v">${rn||"–"}</span></div>
+      <div class="cell mid"><span class="nm">Runde</span><span class="v">${rlabel}</span></div>
       <div class="cell r" style="--c:${PCOL[1]}"><span class="nm"><span>${esc(g.players[1])}</span><i></i></span><span class="v">${sc.p2}</span></div></section>`));
 }
 function renderFlight(below,r){
@@ -607,17 +681,36 @@ function renderGuesses(below,r){
 }
 function renderVerdict(below,r){
   const g=G(),h=g.history.at(-1),solo=g.mode==="solo";
-  const box=$(`<section class="panel verdict"><div><div class="cap">Laut Transponder</div><div class="ty" style="margin-top:8px">${NAMES[h.answer]}</div><div class="sub">${esc(SUB[r.type]||r.type)} · ${esc(r.reg||"Kennzeichen unbekannt")}</div></div></section>`);
+  const box=$(`<section class="panel verdict"><div class="photo" id="photo" style="margin-top:-22px;border-radius:var(--r) var(--r) 0 0"></div><div><div class="cap">Laut Transponder</div><div class="ty" style="margin-top:8px">${NAMES[h.answer]}</div><div class="sub">${esc(SUB[r.type]||r.type)} · ${esc(r.reg||"Kennzeichen unbekannt")}</div></div></section>`);
   const res=$(`<div class="res ${solo?"solo":""}"></div>`);
-  pids().forEach((pid,i)=>{const gu=h.guess[pid],ok=gu===h.answer;
-    res.appendChild($(`<div class="${ok?"ok":"bad"}"><span>${esc(g.players[i])}<small>${gu?esc(gu)+(h.mode[pid]==="mc"?" · Auswahl":" · Freitext"):"kein Tipp"}</small></span><em>${ok?"+1":"±0"}</em></div>`));});
+  pids().forEach((pid,i)=>{const gu=h.guess[pid],ok=gu===h.answer,p=ptsOf(h,pid),raw=G().round.raw&&G().round.raw[pid];
+    const shown=gu?(h.mode[pid]==="mc"?gu+" · Auswahl":(raw||gu)+(h.bonus&&h.bonus[pid]?" · Submodell":" · Freitext")):"kein Tipp";
+    res.appendChild($(`<div class="${ok?"ok":"bad"}"><span>${esc(g.players[i])}<small>${esc(shown)}</small></span><em>${p?"+"+p:"±0"}</em></div>`));});
   box.appendChild(res);
   box.appendChild($(`<span class="fine"><a href="https://www.flightradar24.com/${esc(r.cs)}" target="_blank" rel="noopener">Flug auf Flightradar24 öffnen</a></span>`));
-  below.appendChild(box);
-  dock([btn("cta","Nächster Flug",newRound)]);
+  below.appendChild(box);paintPhoto(r.hex);if(photoCache[r.hex]===undefined)loadPhoto(r);
+  if(isOver())dock([btn("cta","Ergebnis ansehen",()=>{G().finished=true;save();phase="final";render();})]);
+  else dock([btn("cta","Nächster Flug",newRound)]);
+}
+function renderFinal(below){
+  const g=G(),sc=scores(),ps=pids(),n=g.history.length;
+  let title,sub;
+  if(g.mode==="solo"){title=`${sc.p1} Punkte`;sub=`${hits("p1")} von ${n} Flugzeugen erkannt · ${CATS[g.cat].t}`;}
+  else{const d=sc.p1-sc.p2;title=d===0?"Unentschieden":`${esc(g.players[d>0?0:1])} gewinnt`;sub=`${sc.p1} : ${sc.p2} nach ${n} Runden · ${CATS[g.cat].t}`;}
+  below.appendChild($(`<section class="panel final"><span class="cap">Match beendet</span><h1>${title}</h1><p>${esc(sub)}</p></section>`));
+  const st=$(`<section class="panel stats" style="--n:${ps.length}"></section>`);
+  st.appendChild($(`<span class="h"></span>`));ps.forEach((p,i)=>st.appendChild($(`<span class="h n">${esc(g.players[i])}</span>`)));
+  const rows=[["Punkte",p=>sc[p],"tot"],["Treffer",p=>`${hits(p)}/${n}`],["davon Freitext",p=>g.history.filter(r=>r.guess[p]===r.answer&&r.mode[p]!=="mc").length],["Submodell-Bonus",p=>g.history.filter(r=>r.bonus&&r.bonus[p]).length]];
+  for(const [l,f,c] of rows){st.appendChild($(`<span class="${c||""}">${l}</span>`));ps.forEach(p=>st.appendChild($(`<span class="n ${c||""}">${f(p)}</span>`)));}
+  below.appendChild(st);
+  const rl=$(`<section class="panel rounds"></section>`);
+  g.history.forEach((r,k)=>{const pp=ps.map((p,i)=>`<span class="${r.guess[p]===r.answer?"y":"n"}">${esc(g.players[i].slice(0,1))} ${ptsOf(r,p)?"+"+ptsOf(r,p):"–"}</span>`).join("");
+    rl.appendChild($(`<div class="rd"><span class="i">${k+1}</span><span>${NAMES[r.answer]}<br><span class="rt">${esc(r.cs)}${r.o?" · "+esc(r.o)+"–"+esc(r.d):""}</span></span><span class="pp">${pp}</span></div>`));});
+  below.appendChild(rl);
+  dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",()=>{S.setup.mode=g.mode;S.setup.cat=g.cat;S.setup.rounds=g.rounds;startGame();})]);
 }
 load();
-if(S.game&&S.game.round)phase="game";
+if(S.game&&S.game.round&&!S.game.finished)phase="game";
 render();
 if(phase==="game")poll();
 </script>

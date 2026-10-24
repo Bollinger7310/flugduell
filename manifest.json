@@ -1,0 +1,13 @@
+{
+  "name": "Flugduell",
+  "short_name": "Flugduell",
+  "description": "Live-Flugzeugtyp-Quiz",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#080B0F",
+  "theme_color": "#080B0F",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -1,5 +1,5 @@
 // Cloudflare Worker: reicht Live-Flugdaten mit CORS-Freigabe an die Flugduell-App weiter
-const ALLOW = ["api.adsb.lol", "opendata.adsb.fi", "api.airplanes.live", "api.adsbdb.com"];
+const ALLOW = ["api.adsb.lol", "opendata.adsb.fi", "api.airplanes.live", "api.adsbdb.com", "api.planespotters.net"];
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
