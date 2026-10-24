@@ -445,7 +445,7 @@ async function newRound(){
   if(!f){phase="error";render();return;}
   const g={};pids().forEach(p=>g[p]=null);
   G().round={...f,ac:undefined,options:null,guess:{...g},mode:Object.fromEntries(pids().map(p=>[p,"text"])),draft:{},revealed:false,trail:[[f.ac.lat,f.ac.lon,f.ac.alt_baro]]};
-  live=f.ac;lastOk=Date.now();phase="game";save();render();
+  live=f.ac;lastOk=Date.now();phase="game";save();render();loadTrace(G().round);
 }
 function drawOptions(){
   const r=G().round,model=TYPE[r.type],total=dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon]);
@@ -510,9 +510,32 @@ function setTiles(){
 function altColor(a){if(a==null)return "#9aa4b2";const h=50+Math.min(Math.max(a,0),41000)/41000*235;return `hsl(${h},90%,60%)`;}
 function drawTrail(){
   const r=G().round;trailGrp&&map.removeLayer(trailGrp);trailGrp=L.layerGroup().addTo(map);
-  const ref=gc([r.o.lat,r.o.lon],[r.d.lat,r.d.lon])[0][1],pts=unwrap(r.trail,ref);
+  const pts=unwrap(r.trail,r.o.lon);
   for(let i=1;i<pts.length;i++)L.polyline([pts[i-1],pts[i]],{color:altColor(r.trail[i][2]),weight:3.5,lineCap:"round"}).addTo(trailGrp);
+  // Gestrichelt: nur der noch vor dem Flugzeug liegende Weg zum Ziel
+  const here=pts.at(-1),ahead=unwrap(gc([here[0],here[1]],[r.d.lat,r.d.lon]),here[1]);
+  L.polyline(ahead,{color:"#fff",opacity:.5,weight:1.5,dashArray:"2 6",lineCap:"round"}).addTo(trailGrp);
+  r._ahead=ahead;
   return pts;
+}
+// ---------- Bisheriger Flugweg aus dem ADS-B-Verlauf ----------
+async function loadTrace(r){
+  try{
+    const h=r.hex.toLowerCase(),u=`https://globe.adsb.lol/data/traces/${h.slice(-2)}/trace_full_${h}.json`;
+    const d=await getJSON(PROXY+encodeURIComponent(u),12000);
+    if(!d||!Array.isArray(d.trace)||!d.trace.length)return;
+    const pts=d.trace.map(p=>[(d.timestamp+p[0])*1000,p[1],p[2],p[3]]).filter(p=>p[1]!=null&&p[2]!=null);
+    let start=0;
+    for(let i=1;i<pts.length;i++){if(pts[i-1][3]==="ground"||pts[i][0]-pts[i-1][0]>30*60000)start=i;}
+    const leg=pts.slice(start);if(leg.length<2)return;
+    if(G()&&G().round!==r)return;
+    const nearO=dist([leg[0][1],leg[0][2]],[r.o.lat,r.o.lon])<40;
+    r.depTime=nearO?leg[0][0]:null;
+    const step=Math.max(1,Math.ceil(leg.length/500));
+    const tr=leg.filter((p,i)=>i%step===0||i===leg.length-1).map(p=>[p[1],p[2],typeof p[3]==="number"?p[3]:null]);
+    const lastLive=r.trail.at(-1);if(lastLive)tr.push(lastLive);
+    r.trail=tr;r.traced=true;save();mapKey=null;if(phase==="game")showMap(true);tick();
+  }catch(e){note("Verlauf: "+errTxt(e));}
 }
 let mapKey=null;
 function showMap(on){
@@ -520,14 +543,13 @@ function showMap(on){
   const r=G().round;initMap();if(!map)return;map.invalidateSize();
   const key=r.hex+r.cs;if(mapKey===key){updatePlane();return;}mapKey=key;
   layers.forEach(l=>map.removeLayer(l));layers=[];
-  const line=gc([r.o.lat,r.o.lon],[r.d.lat,r.d.lon]);
-  layers.push(L.polyline(line,{color:"#fff",opacity:.45,weight:1.5,dashArray:"2 6",lineCap:"round"}).addTo(map));
+  const line=unwrap([[r.o.lat,r.o.lon],[r.d.lat,r.d.lon]],r.o.lon);
   const ic=L.divIcon({className:"",html:'<div class="ap-ic"></div>',iconSize:[16,16],iconAnchor:[8,8]});
   layers.push(L.marker(line[0],{icon:ic}).bindTooltip(r.o.iata||r.o.icao,{permanent:true,direction:"top",offset:[0,-7],className:"apt"}).addTo(map));
   layers.push(L.marker(line.at(-1),{icon:ic}).bindTooltip(r.d.iata||r.d.icao,{permanent:true,direction:"top",offset:[0,-7],className:"apt"}).addTo(map));
   const last=drawTrail().at(-1);
   planeMk=L.marker(last,{icon:L.divIcon({className:"",html:PLANE_SVG(live?.track||0),iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:1000}).addTo(map);layers.push(planeMk);
-  map.fitBounds(L.latLngBounds(line.concat([last])),{padding:[34,34]});
+  map.fitBounds(L.latLngBounds(line.concat(unwrap(r.trail,r.o.lon),r._ahead||[])),{padding:[34,34]});
 }
 function updatePlane(){
   if(!map||!planeMk||!live||!G()||!G().round)return;
@@ -562,7 +584,7 @@ const PLANE_PATH='<path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-
 function calc(){
   const r=G()&&G().round;if(!r||!live)return null;const pos=[live.lat,live.lon],o=[r.o.lat,r.o.lon],d=[r.d.lat,r.d.lon];
   const gs=Math.max(180,live.gs||450),flown=dist(o,pos),rem=dist(pos,d);
-  const el=flown/Math.max(gs,420)*60+14,remain=live.alt_baro==="ground"?0:rem/Math.max(gs,300)*60+12;
+  const el=r.depTime?(Date.now()-r.depTime)/60000:flown/Math.max(gs,420)*60+14,remain=live.alt_baro==="ground"?0:rem/Math.max(gs,300)*60+12;
   return {el,remain,pct:Math.min(100,flown/(flown+rem)*100),dep:Date.now()-el*60000,arr:Date.now()+remain*60000};
 }
 const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
@@ -573,7 +595,7 @@ function tick(){
     set("alt",live.alt_baro==="ground"?"Boden":live.alt_baro.toLocaleString("de-DE")+" ft"+(vr>500?" ↗":vr<-500?" ↘":""));
     set("gs",live.gs?Math.round(live.gs*1.852).toLocaleString("de-DE")+" km/h":"–");
     set("el",dur(c.el));set("rem",c.remain>0?dur(c.remain):"gelandet");
-    set("dep","ab ~"+fmtT(c.dep));set("arr","an ~"+fmtT(c.arr));
+    set("dep",(G().round.depTime?"ab ":"ab ~")+fmtT(c.dep));set("arr","an ~"+fmtT(c.arr));
     const dn=document.getElementById("done"),pl=document.getElementById("tpl");if(dn){dn.style.width=c.pct+"%";pl.style.left=c.pct+"%";}
   }
   const lv=document.getElementById("live");if(lastOk){const age=(Date.now()-lastOk)/1000;lv.classList.toggle("stale",age>40);
@@ -713,7 +735,7 @@ function renderFinal(below){
 load();
 if(S.game&&S.game.round&&!S.game.finished)phase="game";
 render();
-if(phase==="game")poll();
+if(phase==="game"){poll();const r0=G().round;if(r0&&!r0.revealed&&!r0.traced)loadTrace(r0);}
 </script>
 </body>
 </html>
