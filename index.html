@@ -27,6 +27,8 @@
   --accent:#8DB8E2; --hendrik:#F0A04B; --tyron:#6FA8E6; --ok:#5CC28A; --bad:#EF7A6C;
   --hendrik-soft:#3A2A19; --tyron-soft:#1A2B3F; --ok-soft:#173326; --bad-soft:#3A1E1B; color-scheme:dark}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
+.diag{font:12px/1.5 var(--f-mono);color:var(--muted);text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px}
 html,body{background:var(--bg);color:var(--ink);margin:0}
 body{font-family:var(--f-body);font-size:15px;line-height:1.4;-webkit-text-size-adjust:100%;
   padding-top:max(12px,env(safe-area-inset-top,0px));padding-bottom:max(28px,env(safe-area-inset-bottom,0px));
@@ -186,18 +188,29 @@ function gc(a,b,n=64){const p1=[rad(a[0]),rad(a[1])],p2=[rad(b[0]),rad(b[1])],d=
 function unwrap(pts,ref){const o=[];let prev=ref??null;for(const p of pts){let lon=p[1];if(prev!==null){while(lon-prev>180)lon-=360;while(lon-prev<-180)lon+=360;}o.push([p[0],lon]);prev=lon;}return o;}
 
 // ===================== Live-Daten =====================
-const SRC=["https://api.adsb.lol","https://api.airplanes.live"];
+// Live-Quellen: [Name, Gebiets-URL, Flugzeug-URL]
+const SRC=[
+ ["adsb.lol",(la,lo,r)=>`https://api.adsb.lol/v2/point/${la}/${lo}/${r}`,h=>`https://api.adsb.lol/v2/hex/${h}`],
+ ["adsb.fi",(la,lo,r)=>`https://opendata.adsb.fi/api/v2/lat/${la}/lon/${lo}/dist/${r}`,h=>`https://opendata.adsb.fi/api/v2/hex/${h}`],
+ ["airplanes.live",(la,lo,r)=>`https://api.airplanes.live/v2/point/${la}/${lo}/${r}`,h=>`https://api.airplanes.live/v2/hex/${h}`]];
+let DIAG=[];const note=m=>{DIAG.push(m);if(DIAG.length>40)DIAG.shift();};
+const errTxt=e=>e.name==="AbortError"?"Zeitüberschreitung":(e.message==="Load failed"||e.message==="Failed to fetch")?"blockiert (CORS/Netz)":e.message;
+let goodSrc=null;
 async function getJSON(url,opt){const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),12000);
   try{const r=await fetch(url,{...opt,signal:ctl.signal,cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);return await r.json();}finally{clearTimeout(t);}}
-async function adsb(path){let err;for(const s of SRC){try{return await getJSON(s+path);}catch(e){err=e;}}throw err;}
+async function adsbAny(kind,...args){
+  const order=goodSrc?[goodSrc,...SRC.filter(s=>s!==goodSrc)]:SRC;let err;
+  for(const s of order){try{const d=await getJSON(s[+kind](...args));const ac=d.ac||d.aircraft||[];goodSrc=s;return {ac,src:s[0]};}
+    catch(e){err=e;note(`${s[0]}: ${errTxt(e)}`);}}
+  throw err||new Error("keine Quelle");}
 async function routes(planes){
   try{const r=await getJSON("https://api.adsb.lol/api/0/routeset",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({planes})});
-    const out={};for(const x of r||[]){if(x&&x._airports&&x._airports.length>=2)out[x.callsign]=x;}return out;}catch(e){return {};}
+    const out={};for(const x of r||[]){if(x&&x._airports&&x._airports.length>=2)out[x.callsign]=x;}note(`Routen adsb.lol: ${Object.keys(out).length} von ${planes.length}`);return out;}catch(e){note(`Routen adsb.lol: ${errTxt(e)}`);return {};}
 }
 async function routeAdsbdb(cs){
   try{const r=await getJSON("https://api.adsbdb.com/v0/callsign/"+cs);const f=r.response.flightroute;
     const m=a=>({icao:a.icao_code,iata:a.iata_code,name:a.name,location:a.municipality,lat:a.latitude,lon:a.longitude});
-    return {callsign:cs,_airports:[m(f.origin),m(f.destination)],plausible:true};}catch(e){return null;}
+    return {callsign:cs,_airports:[m(f.origin),m(f.destination)],plausible:true};}catch(e){note(`Route adsbdb ${cs}: ${errTxt(e)}`);return null;}
 }
 function parseCs(ac){const cs=(ac.flight||"").trim();const m=cs.match(/^([A-Z]{3})(\d{1,4})([A-Z]{0,2})$/);if(!m)return null;return {cs,al:m[1],num:+m[2]};}
 function isCandidate(ac){
@@ -216,14 +229,18 @@ function legFor(rt,pos){
 }
 async function findFlight(exclude){
   const regions=[...REGIONS].sort(()=>Math.random()-.5);
+  let tried=0;
   for(const [la,lo] of regions.slice(0,5)){
-    let data;try{data=await adsb(`/v2/point/${la}/${lo}/250`);}catch(e){continue;}
+    if(tried++)await new Promise(r=>setTimeout(r,1100));
+    setStatus(`Suche Flüge im Gebiet ${tried} von 5 …`);
+    let data;try{data=await adsbAny("1",la,lo,250);}catch(e){continue;}
+    note(`${data.src}: ${data.ac.length} Flugzeuge, ${data.ac.filter(isCandidate).length} passende Linienflüge`);
     const cands=(data.ac||[]).filter(isCandidate).filter(a=>!exclude.has(a.hex)).sort(()=>Math.random()-.5).slice(0,25);
     if(!cands.length)continue;
     const rts=await routes(cands.map(a=>({callsign:parseCs(a).cs,lat:a.lat,lng:a.lon})));
     for(const ac of cands){
       const cs=parseCs(ac).cs;let rt=rts[cs];
-      if(!rt&&Object.keys(rts).length===0)rt=await routeAdsbdb(cs);
+      if(!rt&&Object.keys(rts).length===0){rt=await routeAdsbdb(cs);if(!rt&&DIAG.filter(x=>x.startsWith("Route adsbdb")).length>=3)break;}
       if(!rt||rt.plausible===0||rt.plausible===false)continue;
       const leg=legFor(rt,[ac.lat,ac.lon]);if(!leg)continue;
       const total=dist([leg.o.lat,leg.o.lon],[leg.d.lat,leg.d.lon]);
@@ -243,12 +260,12 @@ function scores(){const s={H:0,T:0};for(const r of S.history)for(const p of PLAY
 let live=null, lastOk=0, loading=false, loadErr="", confirmReset=false;
 
 async function newRound(){
-  loading=true;loadErr="";render();
+  loading=true;loadErr="";DIAG=[];render();
   const recent=new Set(S.history.slice(-50).map(h=>h.hex));
   let f=null;
-  try{f=await findFlight(recent);}catch(e){}
+  try{f=await findFlight(recent);}catch(e){note("Fehler: "+e.message);}
   loading=false;
-  if(!f){loadErr="Keine Live-Daten erreichbar oder gerade kein passender Flug gefunden. Prüf die Internetverbindung und versuch es nochmal.";render();return;}
+  if(!f){loadErr="Kein Live-Flug gefunden. Schick Claude einen Screenshot der Details.";render();return;}
   S.round={...f,ac:undefined,options:null,guess:{H:null,T:null},mode:{H:"text",T:"text"},draft:{H:"",T:""},revealed:false,trail:[[f.ac.lat,f.ac.lon]]};
   live=f.ac;lastOk=Date.now();save();resetMap();render();
 }
@@ -307,7 +324,7 @@ document.getElementById("center").onclick=()=>{if(map&&planeMk)map.setView(plane
 // ===================== Live-Abfrage =====================
 async function poll(){
   const r=S.round;if(!r||!r.hex||document.hidden)return;
-  try{const d=await adsb(`/v2/hex/${r.hex}`);const ac=(d.ac||[])[0];
+  try{const d=await adsbAny("2",r.hex);const ac=d.ac[0];
     if(ac&&ac.lat!=null){live=ac;lastOk=Date.now();const last=r.trail.at(-1);
       if(!last||dist(last,[ac.lat,ac.lon])>1){r.trail.push([ac.lat,ac.lon]);if(r.trail.length>600)r.trail.shift();save();}
       updatePlane();}
@@ -341,13 +358,14 @@ function updateFacts(){
   const age=(Date.now()-lastOk)/1000;const lv=document.getElementById("live");
   lv.classList.toggle("stale",age>30);document.getElementById("livetxt").textContent=age>30?`kein Signal seit ${Math.round(age/60)||1} min`:`live · aktualisiert ${fmtT(lastOk)}`;
 }
+function setStatus(t){const e=document.getElementById("status");if(e)e.textContent=t;}
 function render(){
   const sc=scores(),r=S.round,rn=S.history.length+(r&&!r.revealed?1:0);
   document.getElementById("score").innerHTML=`<div class="score"><div class="p h"><span class="name">Hendrik</span><span class="pts">${sc.H}</span></div>
     <div class="mid"><span class="label">Runde</span><b>${rn||"–"}</b></div><div class="p t"><span class="name">Tyron</span><span class="pts">${sc.T}</span></div></div>`;
   const app=document.getElementById("app");app.innerHTML="";
-  if(loading){app.appendChild($(`<div class="msg">Suche einen Flug, der gerade in der Luft ist …</div>`));return;}
-  if(loadErr)app.appendChild($(`<div class="msg err">${esc(loadErr)}</div>`));
+  if(loading){app.appendChild($(`<div class="msg" id="status">Suche einen Flug, der gerade in der Luft ist …</div>`));return;}
+  if(loadErr){const m=$(`<div class="msg err">${esc(loadErr)}<div class="diag">${esc(DIAG.join("\n")||"keine Details")}</div></div>`);app.appendChild(m);}
   if(!r){
     if(!loadErr)app.appendChild($(`<div class="msg">Ein Flug wird live aus dem ADS-B-Netz gezogen: echte Position, echte Höhe, echtes Flugzeug. Beide tippen gleichzeitig auf den Typ.</div>`));
     const b=$(`<button class="btn primary">Ersten Flug ziehen</button>`);b.onclick=newRound;app.appendChild(b);return;
