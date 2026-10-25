@@ -36,7 +36,7 @@ Live-Quiz fürs iPhone: Ein echter Linienflug, der gerade in der Luft ist, wird 
 - Ausgeschlossen: Fracht, Privat, Militär, alles außer Airbus/Boeing
 
 ## Design
-Ruhiger Instrumenten-Look, nicht „Arcade“: Haarlinien statt Schatten, eine Signalfarbe Bernstein (#F0B44C dunkel / #B9781A hell), Zahlen in Monospace, Hell- und Dunkelmodus nach iPhone. Karte im Flightradar-Stil: dunkelgrau, gelbes Flugzeug, Spur nach Höhe eingefärbt, gestrichelte Linie nur vom Flugzeug zum Ziel.
+Ruhiger Instrumenten-Look, nicht „Arcade“: Haarlinien statt Schatten, eine Signalfarbe Bernstein (#F0B44C dunkel / #B9781A hell), Zahlen in Monospace, Hell- und Dunkelmodus nach iPhone. Karte im Navigationskarten-Stil: Esri Dark Gray blau getönt, Koordinatengitter, Vignette, Instrumentenanzeige (FL, Kurs, V/S), gelbes Flugzeug, Spur nach Höhe eingefärbt, gestrichelte Linie nur vom Flugzeug zum Ziel.
 
 ## Arbeitsweise
 - Nutzer arbeitet am iPhone, ohne Programmierkenntnisse: Anleitungen Schritt für Schritt, auf Deutsch.

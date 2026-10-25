@@ -112,7 +112,22 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .dot{width:6px;height:6px;border-radius:50%;background:#4CC88A;animation:pulse 2.2s infinite}
 .stale .dot{background:#F07670;animation:none}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,200,138,.55)}70%{box-shadow:0 0 0 7px rgba(76,200,138,0)}100%{box-shadow:0 0 0 0 rgba(76,200,138,0)}}
-.ap-ic{width:11px;height:11px;border-radius:50%;background:#10141a;border:2.5px solid #fff}
+.ap-ic{width:11px;height:11px;border-radius:50%;background:#0d1520;border:2.5px solid #E6EDF5;box-shadow:0 0 0 4px rgba(230,237,245,.10)}
+.ap-ic.dest{position:relative;border-color:#F0B44C;box-shadow:0 0 0 4px rgba(240,180,76,.14)}
+.ap-ic.dest:after{content:"";position:absolute;inset:-9px;border-radius:50%;border:1.5px solid rgba(240,180,76,.7);animation:ping 2.4s cubic-bezier(0,0,.2,1) infinite}
+@keyframes ping{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.9);opacity:0}}
+.plane-wrap{position:relative;width:44px;height:44px;display:grid;place-items:center}
+.plane-wrap:before{content:"";position:absolute;inset:2px;border-radius:50%;background:radial-gradient(circle,rgba(245,184,61,.38),rgba(245,184,61,0) 68%)}
+.plane-wrap svg{position:relative;filter:drop-shadow(0 2px 4px rgba(0,0,0,.55))}
+.mapwrap.chart .leaflet-tile-pane{filter:sepia(.6) hue-rotate(180deg) saturate(1.7) brightness(1.05) contrast(1.2)}
+.mapwrap.sat .leaflet-tile-pane{filter:brightness(.82) contrast(1.08) saturate(.9)}
+#map.leaflet-container:after{content:"";position:absolute;inset:0;z-index:300;pointer-events:none;background:radial-gradient(120% 90% at 50% 45%,transparent 55%,rgba(3,8,16,.55))}
+.hud{position:absolute;z-index:500;left:10px;bottom:22px;display:flex;gap:1px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.08)}
+.hud span{background:rgba(9,14,22,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:5px 9px;display:flex;flex-direction:column;gap:1px;min-width:52px}
+.hud small{font:500 8.5px var(--m);letter-spacing:.12em;color:rgba(233,237,242,.55)}
+.hud b{font:600 12px var(--m);color:#F3F5F8}
+.leaflet-tooltip.apt{background:rgba(9,14,22,.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1)!important}
+.leaflet-tooltip.apt b{color:#F0B44C;font-weight:600}
 .leaflet-tooltip.apt{background:rgba(12,16,22,.85);color:#fff;border:0;border-radius:6px;font:500 10.5px var(--m);padding:3px 6px;box-shadow:none}
 .leaflet-tooltip.apt:before{display:none}
 .leaflet-control-attribution{font-size:9px!important;background:rgba(12,16,22,.55)!important;color:#aaa!important}
@@ -378,6 +393,7 @@ body{background:radial-gradient(120% 60% at 50% -10%,color-mix(in srgb,var(--sig
     <div class="chip live" id="live"><span class="dot"></span><span id="livetxt">Live</span></div>
     <button class="chip ctr" id="center">Zentrieren</button>
     <button class="chip sty" id="styleBtn">Satellit</button>
+    <div class="hud" id="hud" hidden><span><small>FL</small><b id="h-fl">–</b></span><span><small>KURS</small><b id="h-hd">–</b></span><span><small>V/S</small><b id="h-vs">–</b></span></div>
   </div>
 </div>
 <div class="wrap" id="below" style="margin-top:14px"></div>
@@ -725,9 +741,18 @@ function paintPhoto(key){
 
 // ===================== Karte =====================
 let map,layers=[],planeMk,trailGrp,tiles;
-const PLANE_SVG=a=>`<svg width="34" height="34" viewBox="0 0 24 24" style="transform:rotate(${a}deg)"><path fill="#F5B83D" stroke="#14110a" stroke-width=".8" stroke-linejoin="round" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>`;
+const PLANE_SVG=a=>`<div class="plane-wrap"><svg width="30" height="30" viewBox="0 0 24 24" style="transform:rotate(${a}deg)"><path fill="#F5B83D" stroke="#2a1d05" stroke-width=".7" stroke-linejoin="round" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></div>`;
+const PLANE_ICON=a=>L.divIcon({className:"",html:PLANE_SVG(a),iconSize:[44,44],iconAnchor:[22,22]});
+let gridLayer=null;
+function drawGrid(){
+  if(gridLayer)return;gridLayer=L.layerGroup();
+  const st={color:"#9fc3ff",opacity:.07,weight:1,interactive:false};
+  for(let la=-80;la<=80;la+=10){const pts=[];for(let lo=-540;lo<=540;lo+=10)pts.push([la,lo]);L.polyline(pts,st).addTo(gridLayer);}
+  for(let lo=-540;lo<=540;lo+=10)L.polyline([[-85,lo],[85,lo]],st).addTo(gridLayer);
+  gridLayer.addTo(map);
+}
 const ESRI="https://server.arcgisonline.com/ArcGIS/rest/services/";
-function initMap(){if(map||!window.L)return;map=L.map("map",{zoomControl:false,attributionControl:true});setTiles();}
+function initMap(){if(map||!window.L)return;map=L.map("map",{zoomControl:false,attributionControl:true,zoomSnap:.25});setTiles();drawGrid();}
 function setTiles(){
   if(!map)return;tiles&&tiles.forEach(t=>map.removeLayer(t));
   const sat=S.mapStyle==="sat";
@@ -735,16 +760,20 @@ function setTiles(){
     :[ESRI+"Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",ESRI+"Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"];
   tiles=urls.map((u,i)=>L.tileLayer(u,{maxZoom:16,attribution:i?"":'© <a href="https://www.esri.com/">Esri</a>'}).addTo(map));
   tiles.forEach(t=>t.bringToBack());
+  const w=document.querySelector(".mapwrap");w.classList.toggle("sat",sat);w.classList.toggle("chart",!sat);
   document.getElementById("styleBtn").textContent=sat?"Karte":"Satellit";
 }
 function altColor(a){if(a==null)return "#9aa4b2";const h=50+Math.min(Math.max(a,0),41000)/41000*235;return `hsl(${h},90%,60%)`;}
 function drawTrail(){
   const r=G().round;trailGrp&&map.removeLayer(trailGrp);trailGrp=L.layerGroup().addTo(map);
   const pts=unwrap(r.trail,r.o.lon);
-  for(let i=1;i<pts.length;i++)L.polyline([pts[i-1],pts[i]],{color:altColor(r.trail[i][2]),weight:3.5,lineCap:"round"}).addTo(trailGrp);
+  // Leuchtender Unterzug, darüber die nach Höhe eingefärbte Spur
+  if(pts.length>1){L.polyline(pts,{color:"#F5B83D",opacity:.16,weight:11,lineCap:"round",lineJoin:"round",interactive:false}).addTo(trailGrp);
+    L.polyline(pts,{color:"#05080d",opacity:.55,weight:5.5,lineCap:"round",lineJoin:"round",interactive:false}).addTo(trailGrp);}
+  for(let i=1;i<pts.length;i++)L.polyline([pts[i-1],pts[i]],{color:altColor(r.trail[i][2]),weight:3,lineCap:"round",interactive:false}).addTo(trailGrp);
   // Gestrichelt: nur der noch vor dem Flugzeug liegende Weg zum Ziel
   const here=pts.at(-1),ahead=unwrap(gc([here[0],here[1]],[r.d.lat,r.d.lon]),here[1]);
-  L.polyline(ahead,{color:"#fff",opacity:.5,weight:1.5,dashArray:"2 6",lineCap:"round"}).addTo(trailGrp);
+  L.polyline(ahead,{color:"#E6EDF5",opacity:.55,weight:1.6,dashArray:"1 7",lineCap:"round",interactive:false}).addTo(trailGrp);
   r._ahead=ahead;
   return pts;
 }
@@ -781,22 +810,23 @@ function showMap(on){
   const key=r.hex+r.cs;if(mapKey===key){updatePlane();return;}mapKey=key;
   layers.forEach(l=>map.removeLayer(l));layers=[];
   const line=unwrap([[r.o.lat,r.o.lon],[r.d.lat,r.d.lon]],r.o.lon);
-  const ic=L.divIcon({className:"",html:'<div class="ap-ic"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-  layers.push(L.marker(line[0],{icon:ic}).bindTooltip(r.o.iata||r.o.icao,{permanent:true,direction:"top",offset:[0,-7],className:"apt"}).addTo(map));
-  layers.push(L.marker(line.at(-1),{icon:ic}).bindTooltip(r.d.iata||r.d.icao,{permanent:true,direction:"top",offset:[0,-7],className:"apt"}).addTo(map));
+  const ic=c=>L.divIcon({className:"",html:`<div class="ap-ic ${c}"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+  const lbl=a=>`<b>${esc(a.iata||a.icao)}</b> ${esc((a.location||"").split(",").at(-1).trim())}`;
+  layers.push(L.marker(line[0],{icon:ic(""),interactive:false}).bindTooltip(lbl(r.o),{permanent:true,direction:"top",offset:[0,-8],className:"apt"}).addTo(map));
+  layers.push(L.marker(line.at(-1),{icon:ic("dest"),interactive:false}).bindTooltip(lbl(r.d),{permanent:true,direction:"top",offset:[0,-10],className:"apt"}).addTo(map));
   const last=drawTrail().at(-1);
-  planeMk=L.marker(last,{icon:L.divIcon({className:"",html:PLANE_SVG(live?.track||0),iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:1000}).addTo(map);layers.push(planeMk);
+  planeMk=L.marker(last,{icon:PLANE_ICON(live?.track||0),zIndexOffset:1000,interactive:false}).addTo(map);layers.push(planeMk);
   let extra=[];
   if(r.me){const mp=unwrap([[r.me.lat,r.me.lon]],r.o.lon)[0];extra=[mp];
     layers.push(L.marker(mp,{icon:L.divIcon({className:"",html:'<div class="me-ic"></div>',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:900}).bindTooltip("Du",{permanent:true,direction:"bottom",offset:[0,8],className:"apt"}).addTo(map));}
   // Über mir: auf dich und das Flugzeug zoomen, sonst auf die ganze Route
   if(r.me)map.fitBounds(L.latLngBounds(extra.concat([last])),{padding:[60,60],maxZoom:9});
-  else map.fitBounds(L.latLngBounds(line.concat(unwrap(r.trail,r.o.lon),r._ahead||[])),{padding:[34,34]});
+  else map.fitBounds(L.latLngBounds(line.concat(unwrap(r.trail,r.o.lon),r._ahead||[])),{paddingTopLeft:[40,56],paddingBottomRight:[40,64]});
 }
 function updatePlane(){
   if(!map||!planeMk||!live||!G()||!G().round)return;
   const pts=drawTrail();planeMk.setLatLng(pts.at(-1));
-  planeMk.setIcon(L.divIcon({className:"",html:PLANE_SVG(live.track||0),iconSize:[34,34],iconAnchor:[17,17]}));
+  planeMk.setIcon(PLANE_ICON(live.track||0));
 }
 document.getElementById("styleBtn").onclick=()=>{S.mapStyle=S.mapStyle==="sat"?"map":"sat";save();setTiles();};
 document.getElementById("center").onclick=()=>{if(map&&planeMk)map.setView(planeMk.getLatLng(),Math.max(map.getZoom(),7));};
@@ -832,6 +862,12 @@ function calc(){
 const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
 function tick(){
   const c=calc();
+  const hud=document.getElementById("hud");
+  if(live&&typeof live.alt_baro==="number"){hud.hidden=false;
+    set("h-fl",String(Math.round(live.alt_baro/100)).padStart(3,"0"));
+    set("h-hd",live.track!=null?String(Math.round(live.track)%360).padStart(3,"0")+"°":"–");
+    const vr=live.baro_rate||0;set("h-vs",Math.abs(vr)<200?"±0":(vr>0?"+":"−")+Math.abs(Math.round(vr/100)*100));}
+  else hud.hidden=true;
   const rr=G()&&G().round;
   if(rr&&rr.me&&live&&live.lat!=null){const km=dist([rr.me.lat,rr.me.lon],[live.lat,live.lon])*1.852,dir=DIRS[Math.round(bearing([rr.me.lat,rr.me.lon],[live.lat,live.lon])/45)%8];
     const altm=typeof live.alt_baro==="number"?Math.round(live.alt_baro*0.3048/100)*100:null;
@@ -852,7 +888,7 @@ function btn(cls,txt,fn,dis){const b=$(`<button type="button" class="${cls}">${t
 function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
-const APP_VERSION="1.6";
+const APP_VERSION="1.7";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
