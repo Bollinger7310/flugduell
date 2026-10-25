@@ -836,7 +836,7 @@ function btn(cls,txt,fn,dis){const b=$(`<button type="button" class="${cls}">${t
 function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
-const APP_VERSION="1.4";
+const APP_VERSION="1.5";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
@@ -852,6 +852,8 @@ function render(){
 }
 if("scrollRestoration" in history)history.scrollRestoration="manual";
 function renderInner(){
+  // Merken, wo die App verlassen wurde (Laden/Fehler sind nur Zwischenzustände)
+  if(["menu","setup","ach","rules","game","final"].includes(phase)&&S.view!==phase){S.view=phase;save();}
   const root=document.getElementById("root"),below=document.getElementById("below");root.innerHTML="";below.innerHTML="";
   if(phase==="ach"){showMap(false);renderAch(root);return;}
   if(phase==="setup"){showMap(false);renderSetup(root);return;}
@@ -1036,7 +1038,12 @@ function renderFinal(below){
   dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",()=>{S.setup.mode=g.mode;S.setup.cat=g.cat;S.setup.rounds=g.rounds;S.setup.area=g.area||"world";startGame();})]);
 }
 load();
-if(S.game&&S.game.round&&!S.game.finished)phase="game";
+{const v=S.view,g=S.game;
+  if(v==="game"&&g&&g.round&&!g.finished)phase="game";
+  else if(v==="final"&&g&&g.finished)phase="final";
+  else if(["setup","ach","rules"].includes(v))phase=v;
+  else if(!v&&g&&g.round&&!g.finished)phase="game";
+  else phase="menu";}
 render();
 if(phase==="game"){poll();const r0=G().round;if(r0&&!r0.revealed&&!r0.traced)loadTrace(r0);}
 </script>

@@ -40,7 +40,7 @@ Ruhiger Instrumenten-Look, nicht „Arcade“: Haarlinien statt Schatten, eine S
 ## Arbeitsweise
 - Nutzer arbeitet am iPhone, ohne Programmierkenntnisse: Anleitungen Schritt für Schritt, auf Deutsch.
 - Änderungen direkt auf `main` pushen; GitHub Pages und Cloudflare aktualisieren in 1–2 Minuten.
-- Spielstand liegt im localStorage (Schlüssel `flugduell-v3`); bei Strukturänderungen alten Stand migrieren statt löschen.
+- Spielstand und zuletzt geöffneter Bildschirm (S.view) liegen im localStorage (Schlüssel `flugduell-v3`); bei Strukturänderungen alten Stand migrieren statt löschen.
 
 ## Ideen für später
 Profi-Schwierigkeit (Airline ausgeblendet), Lernkarte mit Erkennungsmerkmalen, gestufte Hinweise gegen Punktabzug, Statistik der Verwechslungen, Rundentimer, Online 1 vs 1, Flightradar24-API.
