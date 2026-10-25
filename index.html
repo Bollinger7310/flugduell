@@ -767,13 +767,18 @@ function altColor(a){if(a==null)return "#9aa4b2";const h=50+Math.min(Math.max(a,
 function drawTrail(){
   const r=G().round;trailGrp&&map.removeLayer(trailGrp);trailGrp=L.layerGroup().addTo(map);
   const pts=unwrap(r.trail,r.o.lon);
+  // Bereits geflogenes, aber nicht aufgezeichnetes Stück: Abflughafen bis Beginn der Spur (durchgezogen, dezent)
+  const first=pts[0],fromO=unwrap(gc([r.o.lat,r.o.lon],[first[0],first[1]],48),r.o.lon);
+  if(dist([r.o.lat,r.o.lon],[first[0],first[1]])>5){
+    L.polyline(fromO,{color:"#F5B83D",opacity:.12,weight:9,lineCap:"round",interactive:false}).addTo(trailGrp);
+    L.polyline(fromO,{color:"#F5B83D",opacity:.75,weight:2.4,lineCap:"round",interactive:false}).addTo(trailGrp);}
   // Leuchtender Unterzug, darüber die nach Höhe eingefärbte Spur
   if(pts.length>1){L.polyline(pts,{color:"#F5B83D",opacity:.16,weight:11,lineCap:"round",lineJoin:"round",interactive:false}).addTo(trailGrp);
     L.polyline(pts,{color:"#05080d",opacity:.55,weight:5.5,lineCap:"round",lineJoin:"round",interactive:false}).addTo(trailGrp);}
   for(let i=1;i<pts.length;i++)L.polyline([pts[i-1],pts[i]],{color:altColor(r.trail[i][2]),weight:3,lineCap:"round",interactive:false}).addTo(trailGrp);
   // Gestrichelt: nur der noch vor dem Flugzeug liegende Weg zum Ziel
   const here=pts.at(-1),ahead=unwrap(gc([here[0],here[1]],[r.d.lat,r.d.lon]),here[1]);
-  L.polyline(ahead,{color:"#E6EDF5",opacity:.55,weight:1.6,dashArray:"1 7",lineCap:"round",interactive:false}).addTo(trailGrp);
+  L.polyline(ahead,{color:"#E6EDF5",opacity:.85,weight:2,dashArray:"2 7",lineCap:"round",interactive:false}).addTo(trailGrp);
   r._ahead=ahead;
   return pts;
 }
@@ -888,7 +893,7 @@ function btn(cls,txt,fn,dis){const b=$(`<button type="button" class="${cls}">${t
 function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
-const APP_VERSION="1.7";
+const APP_VERSION="1.8";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
