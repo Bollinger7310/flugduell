@@ -230,6 +230,28 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .rd .pp span{font:600 11.5px var(--m);padding:3px 7px;border-radius:6px}
 .rd .pp .y{background:var(--ok-soft);color:var(--ok)}
 .rd .pp .n{background:var(--raised);color:var(--faint)}
+/* Abzeichen */
+.badge{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none;background:var(--raised);color:var(--faint);border:1px solid var(--line)}
+.badge.on{background:var(--signal-soft);color:var(--signal);border-color:color-mix(in srgb,var(--signal) 35%,transparent)}
+.achhead{padding:20px 18px;display:flex;flex-direction:column;gap:12px}
+.achhead h1{margin:0;font-weight:600;font-size:30px;letter-spacing:-.03em}
+.meter{height:4px;border-radius:99px;background:var(--raised);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--signal);border-radius:99px}
+.ach{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:13px 16px}
+.ach+.ach{border-top:1px solid var(--line)}
+.ach .t{font-weight:500}
+.ach.off .t{color:var(--ink-2)}
+.ach .d{font-size:12.5px;color:var(--muted);margin-top:1px}
+.ach .x{font:500 11.5px var(--m);color:var(--faint);white-space:nowrap;text-align:right}
+.ach.on .x{color:var(--signal)}
+.toast{position:fixed;z-index:2000;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translate(-50%,-140%);transition:transform .45s cubic-bezier(.2,.8,.2,1);
+  width:min(420px,calc(100% - 32px));display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;padding:12px 14px;
+  background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.toast.in{transform:translate(-50%,0)}
+.toast .cap{color:var(--signal)}
+.toast b{display:block;font-weight:600;margin-top:1px}
+.newach{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.newach .row{display:flex;gap:12px;align-items:center}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -244,6 +266,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
   </div>
 </div>
 <div class="wrap" id="below" style="margin-top:14px"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="dock" id="dock" hidden><div class="in" id="dockIn"></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
@@ -414,7 +437,8 @@ const fleetIn=(al,cat)=>AL[al][1].filter(t=>inCat(t,cat));
 const KEY="flugduell-v3";let S;
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
   if(!S)S={setup:{mode:"duo",cat:"all",rounds:10,names:["Player 1","Player 2"]},game:null,mapStyle:"map"};
-  if(S.setup.rounds===undefined)S.setup.rounds=10;}
+  if(S.setup.rounds===undefined)S.setup.rounds=10;
+  S.ach=S.ach||{};S.life=S.life||{rounds:0,hits:0,free:0,sub:0,best:0,types:[],airlines:[]};}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const G=()=>S.game;
 const pids=()=>G().players.map((_,i)=>"p"+(i+1));
@@ -464,12 +488,67 @@ function lockText(pid){const raw=document.getElementById("in-"+pid).value;const 
 function pickOption(pid,t){G().round.guess[pid]=t;G().round.mode[pid]="mc";save();afterGuess();}
 function afterGuess(){if(G().mode==="solo")reveal();else render();}
 function unlock(pid){G().round.guess[pid]=null;save();render();}
+// ===================== Abzeichen (Singleplayer) =====================
+const ALL_MODELS=["A220","A319","A320","A321","A330","A340","A350","A380","737","747","757","767","777","787"];
+const L_=()=>S.life;
+const ACH=[
+ {g:"Erste Schritte",id:"first",t:"Erstflug",d:"Den ersten Flugzeugtyp richtig erkannt",goal:1,val:()=>L_().hits},
+ {g:"Erste Schritte",id:"free10",t:"Ohne Spickzettel",d:"10 Treffer per Freitext",goal:10,val:()=>L_().free},
+ {g:"Erste Schritte",id:"sub1",t:"Typenkenner",d:"Ein Submodell exakt benannt, z. B. 777-300ER",goal:1,val:()=>L_().sub},
+ {g:"Erste Schritte",id:"sub10",t:"Datenblatt im Kopf",d:"10 Submodelle exakt benannt",goal:10,val:()=>L_().sub},
+ {g:"Serien",id:"st5",t:"Steigflug",d:"5 Treffer in Folge",goal:5,val:()=>L_().best},
+ {g:"Serien",id:"st10",t:"Reiseflughöhe",d:"10 Treffer in Folge",goal:10,val:()=>L_().best},
+ {g:"Serien",id:"st20",t:"Stratosphäre",d:"20 Treffer in Folge",goal:20,val:()=>L_().best},
+ {g:"Matches",id:"perf5",t:"Saubere Landung",d:"Ein 5-Runden-Match ohne Fehler"},
+ {g:"Matches",id:"perf10",t:"Butterweich",d:"Ein 10-Runden-Match ohne Fehler"},
+ {g:"Matches",id:"capt",t:"Kapitän",d:"Ein 10-Runden-Match komplett per Freitext richtig"},
+ {g:"Matches",id:"pts25",t:"Bestnote",d:"25 Punkte oder mehr in einem 10-Runden-Match"},
+ {g:"Matches",id:"longpro",t:"Langstrecken-Profi",d:"8 von 10 im Modus Langstrecke"},
+ {g:"Matches",id:"shortpro",t:"Kurzstrecken-Profi",d:"8 von 10 im Modus Kurz- & Mittelstrecke"},
+ {g:"Sammlung",id:"types8",t:"Typenvielfalt",d:"8 verschiedene Modelle erkannt",goal:8,val:()=>L_().types.length},
+ {g:"Sammlung",id:"typesall",t:"Komplette Flotte",d:"Alle 14 Airbus- und Boeing-Modelle erkannt",goal:14,val:()=>L_().types.filter(t=>ALL_MODELS.includes(t)).length},
+ {g:"Sammlung",id:"al10",t:"Vielflieger",d:"Flüge von 10 verschiedenen Airlines erkannt",goal:10,val:()=>L_().airlines.length},
+ {g:"Sammlung",id:"al25",t:"Weltenbummler",d:"Flüge von 25 verschiedenen Airlines erkannt",goal:25,val:()=>L_().airlines.length},
+ {g:"Sammlung",id:"r100",t:"Hundert Flüge",d:"100 Runden gespielt",goal:100,val:()=>L_().rounds},
+ {g:"Besondere Flüge",id:"queen",t:"Königin der Lüfte",d:"Eine Boeing 747 erkannt"},
+ {g:"Besondere Flüge",id:"a380",t:"Superjumbo",d:"Einen Airbus A380 erkannt"},
+ {g:"Besondere Flüge",id:"ulr",t:"Ultralangstrecke",d:"Typ auf einem Flug über 11.000 km erkannt"},
+ {g:"Besondere Flüge",id:"night",t:"Nachtflug",d:"Ein Treffer zwischen 0 und 5 Uhr"}
+];
+const achQueue=[];
+function grant(id){if(S.ach[id])return;S.ach[id]=Date.now();achQueue.push(id);if(G()){G().newAch=G().newAch||[];G().newAch.push(id);}}
+function checkCounters(){for(const a of ACH)if(a.goal&&a.val()>=a.goal)grant(a.id);}
+function achRound(r,h){
+  const L=L_(),ok=h.guess.p1===h.answer;L.rounds++;
+  if(ok){L.hits++;if(h.mode.p1!=="mc")L.free++;if(h.bonus&&h.bonus.p1)L.sub++;
+    if(!L.types.includes(h.answer))L.types.push(h.answer);if(!L.airlines.includes(r.al))L.airlines.push(r.al);
+    if(h.answer==="747")grant("queen");if(h.answer==="A380")grant("a380");
+    if(dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon])>=5940)grant("ulr");
+    if(new Date().getHours()<5)grant("night");}
+  L.best=Math.max(L.best,streak());checkCounters();
+}
+function achMatch(){
+  const g=G(),hs=g.history,n=hs.length,allOk=hs.every(h=>h.guess.p1===h.answer),hitsN=hits("p1");
+  if(g.rounds===5&&n>=5&&allOk)grant("perf5");
+  if(g.rounds===10&&n>=10){if(allOk)grant("perf10");if(allOk&&hs.every(h=>h.mode.p1!=="mc"))grant("capt");if(scores().p1>=25)grant("pts25");
+    if(g.cat==="long"&&hitsN>=8)grant("longpro");if(g.cat==="short"&&hitsN>=8)grant("shortpro");}
+}
+const BADGE='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l2.2 4.6 5 .7-3.6 3.5.9 5L12 15.4 7.5 17.8l.9-5L4.8 9.3l5-.7z"/><path d="M2 20h5M17 20h5"/></svg>';
+let toastBusy=false;
+function showToasts(){
+  if(toastBusy||!achQueue.length)return;toastBusy=true;
+  const id=achQueue.shift(),a=ACH.find(x=>x.id===id),el=document.getElementById("toast");
+  el.innerHTML=`<span class="badge on">${BADGE}</span><div><span class="cap">Abzeichen freigeschaltet</span><b>${esc(a.t)}</b></div>`;
+  requestAnimationFrame(()=>el.classList.add("in"));
+  setTimeout(()=>{el.classList.remove("in");setTimeout(()=>{toastBusy=false;showToasts();},500);},3200);
+}
 function reveal(){
   const r=G().round,ans=TYPE[r.type],pts={},bonus={};
   for(const p of pids()){const ok=r.guess[p]===ans,mc=r.mode[p]==="mc";bonus[p]=ok&&!mc&&exactSub(r.raw&&r.raw[p],r.type);pts[p]=ok?(mc?1:2)+(bonus[p]?1:0):0;}
   r.revealed=true;
   G().history.push({hex:r.hex,cs:r.cs,type:r.type,reg:r.reg,o:r.o.iata||r.o.icao,d:r.d.iata||r.d.icao,answer:ans,guess:{...r.guess},mode:{...r.mode},pts,bonus});
-  save();render();loadPhoto(r);
+  if(G().mode==="solo"){achRound(r,G().history.at(-1));}
+  save();render();loadPhoto(r);showToasts();
 }
 // ---------- Foto (Planespotters.net) ----------
 const photoCache={};
@@ -614,6 +693,7 @@ function setStatus(t){set("status",t);}
 
 function render(){
   const root=document.getElementById("root"),below=document.getElementById("below");root.innerHTML="";below.innerHTML="";
+  if(phase==="ach"){showMap(false);renderAch(root);return;}
   if(phase==="menu"||!G()){showMap(false);renderMenu(root);return;}
   renderHead(root);
   if(phase==="loading"){showMap(false);
@@ -635,6 +715,9 @@ function renderMenu(root){
   if(g&&g.round&&!g.finished){const sc=scores(),txt=g.mode==="solo"?`${sc.p1} Punkte nach ${g.history.length} Runden`:`${g.players[0]} ${sc.p1} : ${sc.p2} ${g.players[1]}`;
     const b=$(`<button class="panel resume"><div><b>Spiel fortsetzen</b><div class="s">${esc(txt)} · ${CATS[g.cat].t}</div></div><span class="go">Weiter →</span></button>`);
     b.onclick=()=>{phase="game";render();if(!live)poll();};root.appendChild(b);}
+  const got=ACH.filter(a=>S.ach[a.id]).length;
+  const ab=$(`<button class="panel resume"><div style="display:flex;gap:12px;align-items:center"><span class="badge ${got?"on":""}">${BADGE}</span><div><b>Abzeichen</b><div class="s">${got} von ${ACH.length} im Singleplayer freigeschaltet</div></div></div><span class="go">Ansehen →</span></button>`);
+  ab.onclick=()=>{phase="ach";render();window.scrollTo(0,0);};root.appendChild(ab);
   const mg=$(`<div class="group"><div class="cap">Spieler</div></div>`);
   const seg=$(`<div class="seg" role="group" aria-label="Spieler"></div>`);
   [["solo","Singleplayer","1 Spieler"],["duo","Lokal 1 vs 1","2 Spieler, ein Gerät"]].forEach(([k,t,s])=>{
@@ -669,7 +752,7 @@ function renderHead(root){
     root.appendChild($(`<section class="panel board solo">
       <div class="cell" style="--c:${PCOL[0]}"><span class="nm"><i></i><span>${esc(g.players[0])}</span></span><span class="v">${sc.p1}</span></div>
       <div class="cell"><span class="nm">Runde</span><span class="v">${rlabel}</span></div>
-      <div class="cell r"><span class="nm">Treffer · Serie</span><span class="v">${n?pct+"%":"–"}<span style="color:var(--faint);font-size:15px"> · ${streak()}</span></span></div></section>`));}
+      <div class="cell r"><span class="nm">Treffer · Serie ${streak()}</span><span class="v">${n?pct+"%":"–"}</span></div></section>`));}
   else root.appendChild($(`<section class="panel board">
       <div class="cell" style="--c:${PCOL[0]}"><span class="nm"><i></i><span>${esc(g.players[0])}</span></span><span class="v">${sc.p1}</span></div>
       <div class="cell mid"><span class="nm">Runde</span><span class="v">${rlabel}</span></div>
@@ -719,8 +802,22 @@ function renderVerdict(below,r){
   box.appendChild(res);
   box.appendChild($(`<span class="fine"><a href="https://www.flightradar24.com/${esc(r.cs)}" target="_blank" rel="noopener">Flug auf Flightradar24 öffnen</a></span>`));
   below.appendChild(box);paintPhoto(r.hex);if(photoCache[r.hex]===undefined)loadPhoto(r);
-  if(isOver())dock([btn("cta","Ergebnis ansehen",()=>{G().finished=true;save();phase="final";render();})]);
+  if(isOver())dock([btn("cta","Ergebnis ansehen",()=>{G().finished=true;if(G().mode==="solo")achMatch();save();phase="final";render();showToasts();})]);
   else dock([btn("cta","Nächster Flug",newRound)]);
+}
+function renderAch(root){
+  const got=ACH.filter(a=>S.ach[a.id]).length;
+  const bar=$(`<div class="bar"></div>`);bar.appendChild(btn("back",`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>Menü`,()=>{phase="menu";render();}));
+  bar.appendChild($(`<span class="tag">Singleplayer</span>`));root.appendChild(bar);
+  root.appendChild($(`<section class="panel achhead"><span class="cap">Abzeichen</span><h1>${got} von ${ACH.length}</h1><div class="meter"><i style="width:${got/ACH.length*100}%"></i></div><span class="fine" style="color:var(--muted)">${L_().rounds} ${L_().rounds===1?"Runde":"Runden"} gespielt · ${L_().hits} Treffer · beste Serie ${L_().best}</span></section>`));
+  let grp=null,box=null;
+  for(const a of ACH){
+    if(a.g!==grp){grp=a.g;const gw=$(`<div class="group"><div class="cap">${esc(grp)}</div></div>`);box=$(`<div class="panel"></div>`);gw.appendChild(box);root.appendChild(gw);}
+    const on=!!S.ach[a.id];
+    const right=on?new Date(S.ach[a.id]).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"2-digit"}):(a.goal?`${Math.min(a.val(),a.goal)}/${a.goal}`:"offen");
+    box.appendChild($(`<div class="ach ${on?"on":"off"}"><span class="badge ${on?"on":""}">${BADGE}</span><div><div class="t">${esc(a.t)}</div><div class="d">${esc(a.d)}</div></div><span class="x">${right}</span></div>`));
+  }
+  dock([btn("cta","Zurück zum Menü",()=>{phase="menu";render();})]);
 }
 function renderFinal(below){
   const g=G(),sc=scores(),ps=pids(),n=g.history.length;
@@ -737,6 +834,9 @@ function renderFinal(below){
   g.history.forEach((r,k)=>{const pp=ps.map((p,i)=>`<span class="${r.guess[p]===r.answer?"y":"n"}">${esc(g.players[i].slice(0,1))} ${ptsOf(r,p)?"+"+ptsOf(r,p):"–"}</span>`).join("");
     rl.appendChild($(`<div class="rd"><span class="i">${k+1}</span><span>${NAMES[r.answer]}<br><span class="rt">${esc(r.cs)}${r.o?" · "+esc(r.o)+"–"+esc(r.d):""}</span></span><span class="pp">${pp}</span></div>`));});
   below.appendChild(rl);
+  if(g.mode==="solo"&&g.newAch&&g.newAch.length){const na=$(`<section class="panel newach"><span class="cap">Neue Abzeichen in diesem Match</span></section>`);
+    g.newAch.forEach(id=>{const a=ACH.find(x=>x.id===id);na.appendChild($(`<div class="row"><span class="badge on">${BADGE}</span><div><b style="font-weight:500">${esc(a.t)}</b><div class="fine" style="color:var(--muted)">${esc(a.d)}</div></div></div>`));});
+    below.insertBefore(na,below.children[1]);}
   dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",()=>{S.setup.mode=g.mode;S.setup.cat=g.cat;S.setup.rounds=g.rounds;startGame();})]);
 }
 load();
