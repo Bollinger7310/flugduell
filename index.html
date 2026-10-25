@@ -256,6 +256,28 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .toast b{display:block;font-weight:600;margin-top:1px}
 .newach{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .newach .row{display:flex;gap:12px;align-items:center}
+/* Startbildschirm */
+.hero2{padding:22px 2px 4px}
+.hero2 h1{margin:0;font-weight:600;font-size:34px;line-height:1.05;letter-spacing:-.035em;max-width:13ch;text-wrap:balance}
+.hero2 h1 em{font-style:normal;color:var(--signal)}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:18px 16px 16px;text-align:left;min-height:150px}
+.tile:active{border-color:var(--signal)}
+.tic{width:42px;height:42px;border-radius:12px;background:var(--signal-soft);color:var(--signal);display:grid;place-items:center;margin-bottom:auto}
+.tt{font-weight:600;font-size:18px;letter-spacing:-.02em;margin-top:18px}
+.td{font-size:12.5px;color:var(--muted);line-height:1.35}
+.lastset{font:400 11.5px var(--m);color:var(--faint);text-align:center;padding:2px 0}
+.foot{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.flink{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:14px;color:var(--ink-2);font-weight:500;font-size:14px;border:1px solid var(--line)}
+.flink .num{font:500 12px var(--m);color:var(--muted)}
+.badge.sm{width:24px;height:24px;border-radius:7px}
+.badge.sm svg{width:15px;height:15px}
+.setbox{padding:6px 16px 14px;display:flex;flex-direction:column}
+.srow{display:flex;flex-direction:column;gap:8px;padding-top:14px}
+.seg.mini button{padding:10px 6px;font-size:14px}
+.hintline{font-size:12px;color:var(--muted);padding:8px 2px 0}
+.rtext{padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.rtext p{margin:0;color:var(--ink-2);font-size:14.5px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -727,6 +749,8 @@ function setStatus(t){set("status",t);}
 function render(){
   const root=document.getElementById("root"),below=document.getElementById("below");root.innerHTML="";below.innerHTML="";
   if(phase==="ach"){showMap(false);renderAch(root);return;}
+  if(phase==="setup"){showMap(false);renderSetup(root);return;}
+  if(phase==="rules"){showMap(false);renderRules(root);return;}
   if(phase==="menu"||!G()){showMap(false);renderMenu(root);return;}
   renderHead(root);
   if(phase==="loading"){showMap(false);
@@ -741,43 +765,58 @@ function render(){
   if(!r.revealed)renderGuesses(below,r);else renderVerdict(below,r);
   tick();
 }
+const BACK=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>`;
+const CAT_SHORT={long:"Langstrecke",short:"Kurz & Mittel",all:"Alle Typen"};
+function setupLine(){const st=S.setup;return `${CAT_SHORT[st.cat]} · ${st.area==="near"?"Über mir":"Weltweit"} · ${st.rounds?st.rounds+" Runden":"Endlos"}`;}
 function renderMenu(root){
-  const st=S.setup,g=S.game;
-  root.appendChild($(`<div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 24 24">${PLANE_PATH}</svg>Flugduell</div><div class="status"><i></i>Live-ADS-B</div></div>`));
-  root.appendChild($(`<div class="intro"><h1>Welcher Jet fliegt <em>gerade</em> da oben?</h1><p>Ein echter Flug, live vom Transponder. Route, Höhe und Airline sind bekannt, den Flugzeugtyp musst du erkennen.</p></div>`));
-  if(g&&g.round&&!g.finished){const sc=scores(),txt=g.mode==="solo"?`${sc.p1} Punkte nach ${g.history.length} Runden`:`${g.players[0]} ${sc.p1} : ${sc.p2} ${g.players[1]}`;
-    const b=$(`<button class="panel resume"><div><b>Spiel fortsetzen</b><div class="s">${esc(txt)} · ${CATS[g.cat].t}</div></div><span class="go">Weiter →</span></button>`);
+  const g=S.game,got=ACH.filter(a=>S.ach[a.id]).length;
+  root.appendChild($(`<div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 24 24">${PLANE_PATH}</svg>Flugduell</div><div class="status"><i></i>Live</div></div>`));
+  root.appendChild($(`<div class="hero2"><h1>Welcher Jet fliegt <em>gerade</em> da oben?</h1></div>`));
+  if(g&&g.round&&!g.finished){const sc=scores(),txt=g.mode==="solo"?`${sc.p1} Punkte · Runde ${g.history.length+(g.round.revealed?0:1)}`:`${g.players[0]} ${sc.p1} : ${sc.p2} ${g.players[1]}`;
+    const b=$(`<button class="panel resume"><div><b>Spiel fortsetzen</b><div class="s">${esc(txt)}</div></div><span class="go">Weiter →</span></button>`);
     b.onclick=()=>{phase="game";render();if(!live)poll();};root.appendChild(b);}
-  const got=ACH.filter(a=>S.ach[a.id]).length;
-  const ab=$(`<button class="panel resume"><div style="display:flex;gap:12px;align-items:center"><span class="badge ${got?"on":""}">${BADGE}</span><div><b>Abzeichen</b><div class="s">${got} von ${ACH.length} im Singleplayer freigeschaltet</div></div></div><span class="go">Ansehen →</span></button>`);
-  ab.onclick=()=>{phase="ach";render();window.scrollTo(0,0);};root.appendChild(ab);
-  const mg=$(`<div class="group"><div class="cap">Spieler</div></div>`);
-  const seg=$(`<div class="seg" role="group" aria-label="Spieler"></div>`);
-  [["solo","Singleplayer","1 Spieler"],["duo","Lokal 1 vs 1","2 Spieler, ein Gerät"]].forEach(([k,t,s])=>{
-    const b=$(`<button aria-pressed="${st.mode===k}">${t}<small>${s}</small></button>`);b.onclick=()=>{st.mode=k;save();render();};seg.appendChild(b);});
-  mg.appendChild(seg);
-  const nl=$(`<div class="panel list"></div>`);
-  (st.mode==="solo"?[0]:[0,1]).forEach(i=>{const row=$(`<label class="name-row" style="--c:${PCOL[i]}"><i></i><input id="nm${i}" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="Player ${i+1}" aria-label="Name Spieler ${i+1}"></label>`);
-    const inp=row.querySelector("input");inp.value=st.names[i]??`Player ${i+1}`;inp.oninput=()=>{st.names[i]=inp.value;save();};nl.appendChild(row);});
-  mg.appendChild(nl);root.appendChild(mg);
-  const cg=$(`<div class="group"><div class="cap">Flugzeuge</div></div>`),cl=$(`<div class="panel list" role="radiogroup"></div>`);
-  const ICON={long:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12h20M16 6l6 6-6 6"/></svg>',
-    short:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12h10M11 8l4 4-4 4"/></svg>',
-    all:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/></svg>'};
-  ["long","short","all"].forEach(k=>{const b=$(`<button class="opt-row" role="radio" aria-checked="${st.cat===k}"><span class="ic">${ICON[k]}</span><span><div class="t">${CATS[k].t}</div><div class="d">${CATS[k].d}</div></span><span class="radio"></span></button>`);
-    b.onclick=()=>{st.cat=k;save();render();};cl.appendChild(b);});
-  cg.appendChild(cl);root.appendChild(cg);
-  const ag=$(`<div class="group"><div class="cap">Gebiet</div></div>`),as=$(`<div class="seg" role="group" aria-label="Gebiet"></div>`);
-  [["world","Weltweit","Flüge rund um den Globus"],["near","Über mir","Flüge in deiner Nähe"]].forEach(([k,t,s2])=>{
-    const b=$(`<button aria-pressed="${st.area===k}">${t}<small>${s2}</small></button>`);b.onclick=()=>{st.area=k;save();render();};as.appendChild(b);});
-  ag.appendChild(as);root.appendChild(ag);
-  const lg=$(`<div class="group"><div class="cap">Matchlänge</div></div>`),ls=$(`<div class="seg three" role="group" aria-label="Matchlänge"></div>`);
-  [[5,"5 Runden","kurz"],[10,"10 Runden","Standard"],[0,"Endlos","frei spielen"]].forEach(([k,t,s2])=>{
-    const b=$(`<button aria-pressed="${st.rounds===k}">${t}<small>${s2}</small></button>`);b.onclick=()=>{st.rounds=k;save();render();};ls.appendChild(b);});
-  lg.appendChild(ls);root.appendChild(lg);
-  const rg=$(`<div class="group"><div class="cap">Punkte</div><div class="panel rules"><b>+2</b><span>Richtiges Modell per Freitext</span><b>+1</b><span>Richtig per Auswahl aus drei Typen</span><b>+1</b><span>Bonus: genaues Submodell im Freitext, z. B. A350-1000 oder 777-300ER</span></div></div>`);
-  root.appendChild(rg);
-  dock([btn("cta",g&&g.round&&!g.finished?"Neues Spiel starten":"Spiel starten",()=>{startGame();})]);
+  const tiles=$(`<div class="tiles"></div>`);
+  [["solo","Singleplayer","Allein spielen, Abzeichen sammeln",'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/>'],
+   ["duo","1 vs 1","Zu zweit an einem Gerät",'<circle cx="8.5" cy="8.5" r="3"/><circle cx="16" cy="9.5" r="2.6"/><path d="M2.5 20c.8-3.6 3.3-5.5 6-5.5s5.2 1.9 6 5.5M15 14.6c2.6 0 5 1.7 6.3 5.4"/>']].forEach(([k,t,d,ic])=>{
+    const b=$(`<button class="panel tile"><span class="tic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">${ic}</svg></span><span class="tt">${t}</span><span class="td">${d}</span></button>`);
+    b.onclick=()=>{S.setup.mode=k;save();phase="setup";render();window.scrollTo(0,0);};tiles.appendChild(b);});
+  root.appendChild(tiles);
+  root.appendChild($(`<div class="lastset">Zuletzt: ${esc(setupLine())}</div>`));
+  const foot=$(`<div class="foot"></div>`);
+  const fa=$(`<button class="flink"><span class="badge sm ${got?"on":""}">${BADGE}</span>Abzeichen <span class="num">${got}/${ACH.length}</span></button>`);fa.onclick=()=>{phase="ach";render();window.scrollTo(0,0);};
+  const fr=$(`<button class="flink"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Spielregeln</button>`);fr.onclick=()=>{phase="rules";render();window.scrollTo(0,0);};
+  foot.append(fa,fr);root.appendChild(foot);
+  dock([]);
+}
+function segRow(label,opts,cur,fn){
+  const w=$(`<div class="srow"><span class="cap">${label}</span></div>`),sg=$(`<div class="seg mini" style="grid-template-columns:repeat(${opts.length},1fr)"></div>`);
+  opts.forEach(([k,t])=>{const b=$(`<button aria-pressed="${cur===k}">${t}</button>`);b.onclick=()=>fn(k);sg.appendChild(b);});
+  w.appendChild(sg);return w;
+}
+function renderSetup(root){
+  const st=S.setup,duo=st.mode==="duo";
+  const bar=$(`<div class="bar"></div>`);bar.appendChild(btn("back",BACK+"Zurück",()=>{phase="menu";render();}));root.appendChild(bar);
+  root.appendChild($(`<div class="hero2"><span class="cap">${duo?"Lokal · 2 Spieler":"Allein"}</span><h1 style="margin-top:8px">${duo?"1 vs 1":"Singleplayer"}</h1></div>`));
+  if(duo){const nl=$(`<div class="panel list"></div>`);
+    [0,1].forEach(i=>{const row=$(`<label class="name-row" style="--c:${PCOL[i]}"><i></i><input id="nm${i}" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="Player ${i+1}" aria-label="Name Spieler ${i+1}"></label>`);
+      const inp=row.querySelector("input");inp.value=st.names[i]??`Player ${i+1}`;inp.oninput=()=>{st.names[i]=inp.value;save();};nl.appendChild(row);});
+    root.appendChild(nl);}
+  const box=$(`<section class="panel setbox"></section>`);
+  const re=k=>v=>{st[k]=v;save();render();};
+  box.appendChild(segRow("Flugzeuge",[["long","Lang"],["short","Kurz & Mittel"],["all","Alle"]],st.cat,re("cat")));
+  box.appendChild($(`<div class="hintline">${esc(CATS[st.cat].d)}</div>`));
+  box.appendChild(segRow("Gebiet",[["world","Weltweit"],["near","Über mir"]],st.area,re("area")));
+  if(st.area==="near")box.appendChild($(`<div class="hintline">Nutzt deinen Standort für Flüge in deiner Nähe</div>`));
+  box.appendChild(segRow("Runden",[[5,"5"],[10,"10"],[0,"Endlos"]],st.rounds,re("rounds")));
+  root.appendChild(box);
+  dock([btn("cta","Starten",()=>{startGame();})]);
+}
+function renderRules(root){
+  const bar=$(`<div class="bar"></div>`);bar.appendChild(btn("back",BACK+"Zurück",()=>{phase="menu";render();}));root.appendChild(bar);
+  root.appendChild($(`<div class="hero2"><h1>Spielregeln</h1></div>`));
+  root.appendChild($(`<section class="panel rtext"><p>Ein echter Linienflug, der gerade in der Luft ist. Airline, Route, Höhe und Tempo siehst du, den Flugzeugtyp musst du erkennen. Das Modell reicht, also z. B. A330 statt A330-300.</p><p>Zuerst wird per Freitext getippt. Wem das zu schwer ist, der lässt sich drei Typen zur Auswahl zeigen.</p><p>Im 1 vs 1 tippen beide verdeckt, aufgelöst wird gemeinsam.</p></section>`));
+  root.appendChild($(`<div class="group"><div class="cap">Punkte</div><div class="panel rules"><b>+2</b><span>Richtiges Modell per Freitext</span><b>+1</b><span>Richtig per Auswahl aus drei Typen</span><b>+1</b><span>Bonus: genaues Submodell im Freitext, z. B. A350-1000 oder 777-300ER</span></div></div>`));
+  dock([btn("cta","Verstanden",()=>{phase="menu";render();})]);
 }
 function renderHead(root){
   const g=G(),sc=scores();

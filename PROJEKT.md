@@ -23,7 +23,7 @@ Live-Quiz fürs iPhone: Ein echter Linienflug, der gerade in der Luft ist, wird 
 - Nur private, nicht-kommerzielle Nutzung. Für kommerziell: lizenzierte Daten nötig (z. B. Flightradar24-API, Explorer 9 $/Monat).
 
 ## Spielfunktionen
-- Hauptmenü: Singleplayer oder Lokal 1 vs 1 (Standardnamen „Player 1“ / „Player 2“, änderbar)
+- Startbildschirm: Kacheln Singleplayer / 1 vs 1, darunter Abzeichen und Spielregeln; Tipp auf Kachel öffnet „Spiel einrichten“ (Namen nur bei 1 vs 1, Flugzeuge, Gebiet, Runden, letzte Auswahl voreingestellt). Modi: Singleplayer oder Lokal 1 vs 1 (Standardnamen „Player 1“ / „Player 2“, änderbar)
 - Flugzeuge: Langstrecke (A330, A340, A350, A380, 747, 767, 777, 787), Kurz- & Mittelstrecke (A220, A319–A321, 737, 757), Alle Typen
 - Gebiet: Weltweit oder „Über mir“ (Standort, nächster Flug im Umkreis 100 nm, dann 250 nm; zeigt Entfernung/Richtung)
 - Matchlänge: 5, 10 oder Endlos; Ergebnis-Bildschirm mit Statistik und „Revanche“
