@@ -141,6 +141,9 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .data .v{font:500 14px var(--m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:460px){.data{grid-template-columns:repeat(2,1fr)}.data div:nth-child(3){border-left:0;padding-left:18px}.data div:nth-child(n+3){border-top:1px solid var(--line)}}
 .fine{font-size:11.5px;color:var(--faint)}
+.rel{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--signal-soft);color:var(--ink);font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:8px}
+.rel:before{content:"";width:8px;height:8px;border-radius:50%;background:#4C9BF0;box-shadow:0 0 0 3px rgba(76,155,240,.25);flex:none}
+.me-ic{width:14px;height:14px;border-radius:50%;background:#4C9BF0;border:2.5px solid #fff;box-shadow:0 0 0 6px rgba(76,155,240,.25)}
 .fine a{color:var(--signal);text-decoration:none}
 
 /* ---------- Tipps ---------- */
@@ -380,8 +383,8 @@ async function routeAdsbdb(cs){
   }catch(e){return null;}
 }
 function parseCs(ac){const cs=(ac.flight||"").trim();const m=cs.match(/^([A-Z]{3})(\d{1,4})([A-Z]{0,2})$/);if(!m)return null;return {cs,al:m[1],num:+m[2]};}
-function isCandidate(ac,cat){
-  if(!ac||typeof ac.alt_baro!=="number"||ac.alt_baro<12000)return false;
+function isCandidate(ac,cat,minAlt=12000){
+  if(!ac||typeof ac.alt_baro!=="number"||ac.alt_baro<minAlt)return false;
   if(ac.lat==null||ac.lon==null||!TYPE[ac.t])return false;
   if((ac.dbFlags||0)&1)return false;
   const c=parseCs(ac);if(!c||!AL[c.al])return false;
@@ -397,15 +400,17 @@ function legFor(rt,pos){
   return b;
 }
 let searchCtl=null;
-async function findFlight(exclude,cat){
-  const regions=[...REGIONS].sort(()=>Math.random()-.5).slice(0,4);
+async function findFlight(exclude,cat,me){
+  // Weltweit: zufällige Regionen. Über mir: erst 100 nm, dann 250 nm um den eigenen Standort, nächste Flüge zuerst
+  const regions=me?[[me.lat,me.lon,100],[me.lat,me.lon,250]]:[...REGIONS].sort(()=>Math.random()-.5).slice(0,4).map(([a,b])=>[a,b,180]);
   for(let i=0;i<regions.length;i++){
     if(searchCtl&&searchCtl.cancelled)return null;
     if(i)await new Promise(r=>setTimeout(r,1500));
-    setStatus(i===0?"Radar läuft …":"Suche in einer anderen Region …");
-    const [la,lo]=regions[i];
-    let data;try{data=await adsbAny(1,la,lo,180);}catch(e){note("Gebiet "+(i+1)+": keine Daten");if(i>=1&&!best)return null;continue;}
-    const cands=data.ac.filter(a=>isCandidate(a,cat)).filter(a=>!exclude.has(a.hex)).sort(()=>Math.random()-.5).slice(0,6);
+    setStatus(me?(i===0?"Radar sucht über dir …":"Erweitere den Suchradius …"):(i===0?"Radar läuft …":"Suche in einer anderen Region …"));
+    const [la,lo,rad]=regions[i];
+    let data;try{data=await adsbAny(1,la,lo,rad);}catch(e){note("Gebiet "+(i+1)+": keine Daten");if(i>=1&&!best)return null;continue;}
+    let cands=data.ac.filter(a=>isCandidate(a,cat,me?2500:12000)).filter(a=>!exclude.has(a.hex));
+    cands=me?cands.sort((a,b)=>dist([me.lat,me.lon],[a.lat,a.lon])-dist([me.lat,me.lon],[b.lat,b.lon])).slice(0,8):cands.sort(()=>Math.random()-.5).slice(0,6);
     note(`${data.src}: ${data.ac.length} Flugzeuge, ${cands.length} Kandidaten`);
     if(!cands.length)continue;
     setStatus(`${cands.length} Kandidaten gefunden, prüfe Routen …`);
@@ -414,8 +419,8 @@ async function findFlight(exclude,cat){
       const ac=cands[k],rt=rts[k];if(!rt)continue;
       const leg=legFor(rt,[ac.lat,ac.lon]);if(!leg)continue;
       const total=dist([leg.o.lat,leg.o.lon],[leg.d.lat,leg.d.lon]);
-      if(total<150||leg.dev>Math.max(250,total*0.25))continue;
-      if(dist([ac.lat,ac.lon],[leg.d.lat,leg.d.lon])<120)continue;
+      if(total<(me?80:150)||leg.dev>Math.max(250,total*0.25))continue;
+      if(dist([ac.lat,ac.lon],[leg.d.lat,leg.d.lon])<(me?15:120))continue;
       return {hex:ac.hex,cs:parseCs(ac).cs,al:parseCs(ac).al,type:ac.t,reg:ac.r||"",o:leg.o,d:leg.d,ac};
     }
     note("Keine plausible Route in diesem Gebiet");
@@ -439,7 +444,8 @@ const KEY="flugduell-v3";let S;
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
   if(!S)S={setup:{mode:"duo",cat:"all",rounds:10,names:["Player 1","Player 2"]},game:null,mapStyle:"map"};
   if(S.setup.rounds===undefined)S.setup.rounds=10;
-  S.ach=S.ach||{};S.life=S.life||{rounds:0,hits:0,free:0,sub:0,best:0,types:[],airlines:[]};}
+  S.ach=S.ach||{};S.life=S.life||{rounds:0,hits:0,free:0,sub:0,best:0,types:[],airlines:[]};S.life.near=S.life.near||0;
+  if(!S.setup.area)S.setup.area="world";}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const G=()=>S.game;
 const pids=()=>G().players.map((_,i)=>"p"+(i+1));
@@ -459,15 +465,30 @@ let live=null,lastOk=0,phase="menu";
 
 function startGame(){
   const st=S.setup,names=st.mode==="solo"?[st.names[0]]:st.names.slice(0,2);
-  S.game={mode:st.mode,cat:st.cat,rounds:st.rounds||0,players:names.map((n,i)=>n.trim()||`Player ${i+1}`),history:[],round:null};
+  S.game={mode:st.mode,cat:st.cat,area:st.area||"world",rounds:st.rounds||0,players:names.map((n,i)=>n.trim()||`Player ${i+1}`),history:[],round:null};
   save();phase="game";newRound();
 }
+let errMsg="";
+function locate(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej({code:2});
+  navigator.geolocation.getCurrentPosition(p=>res({lat:+p.coords.latitude.toFixed(3),lon:+p.coords.longitude.toFixed(3)}),rej,{enableHighAccuracy:false,timeout:15000,maximumAge:300000});});}
+const DIRS=["Norden","Nordosten","Osten","Südosten","Süden","Südwesten","Westen","Nordwesten"];
+function bearing(a,b){const y=Math.sin(rad(b[1]-a[1]))*Math.cos(rad(b[0])),x=Math.cos(rad(a[0]))*Math.sin(rad(b[0]))-Math.sin(rad(a[0]))*Math.cos(rad(b[0]))*Math.cos(rad(b[1]-a[1]));return (deg(Math.atan2(y,x))+360)%360;}
 async function newRound(){
   phase="loading";DIAG=[];searchCtl={cancelled:false};live=null;lastOk=0;render();
   const recent=new Set(G().history.slice(-60).map(h=>h.hex));
-  let f=null;try{f=await findFlight(recent,G().cat);}catch(e){note("Fehler: "+e.message);}
+  let me=null;errMsg="";
+  if(G().area==="near"){
+    setStatus("Standort wird bestimmt …");
+    try{me=await locate();G().me=me;}
+    catch(e){if(searchCtl.cancelled)return;
+      errMsg=e&&e.code===1?"Standortzugriff verweigert. In Safari: auf „aA“ in der Adressleiste tippen → Website-Einstellungen → Standort → Erlauben. Als App vom Home-Bildschirm: iPhone-Einstellungen → Datenschutz & Sicherheit → Ortungsdienste → Safari-Websites → „Beim Verwenden“."
+        :"Dein Standort konnte nicht bestimmt werden. Prüf, ob die Ortungsdienste eingeschaltet sind, und versuch es nochmal.";
+      phase="error";render();return;}
+  }
+  let f=null;try{f=await findFlight(recent,G().cat,me);}catch(e){note("Fehler: "+e.message);}
   if(searchCtl.cancelled)return;
-  if(!f){phase="error";render();return;}
+  if(!f){if(me)errMsg="Gerade fliegt in deiner Nähe (bis ca. 460 km) kein passender Linienflug. Versuch es gleich nochmal oder wähle „Alle Typen“.";phase="error";render();return;}
+  f.me=me;
   const g={};pids().forEach(p=>g[p]=null);
   G().round={...f,ac:undefined,options:null,guess:{...g},mode:Object.fromEntries(pids().map(p=>[p,"text"])),draft:{},revealed:false,trail:[[f.ac.lat,f.ac.lon,f.ac.alt_baro]]};
   live=f.ac;lastOk=Date.now();phase="game";save();render();loadTrace(G().round);
@@ -514,7 +535,8 @@ const ACH=[
  {g:"Besondere Flüge",id:"queen",t:"Königin der Lüfte",d:"Eine Boeing 747 erkannt"},
  {g:"Besondere Flüge",id:"a380",t:"Superjumbo",d:"Einen Airbus A380 erkannt"},
  {g:"Besondere Flüge",id:"ulr",t:"Ultralangstrecke",d:"Typ auf einem Flug über 11.000 km erkannt"},
- {g:"Besondere Flüge",id:"night",t:"Nachtflug",d:"Ein Treffer zwischen 0 und 5 Uhr"}
+ {g:"Besondere Flüge",id:"night",t:"Nachtflug",d:"Ein Treffer zwischen 0 und 5 Uhr"},
+ {g:"Besondere Flüge",id:"spot5",t:"Planespotter",d:"5 Treffer im Modus Über mir",goal:5,val:()=>L_().near||0}
 ];
 const achQueue=[];
 function grant(id){if(S.ach[id])return;S.ach[id]=Date.now();achQueue.push(id);if(G()){G().newAch=G().newAch||[];G().newAch.push(id);}}
@@ -525,7 +547,8 @@ function achRound(r,h){
     if(!L.types.includes(h.answer))L.types.push(h.answer);if(!L.airlines.includes(r.al))L.airlines.push(r.al);
     if(h.answer==="747")grant("queen");if(h.answer==="A380")grant("a380");
     if(dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon])>=5940)grant("ulr");
-    if(new Date().getHours()<5)grant("night");}
+    if(new Date().getHours()<5)grant("night");
+    if(G().area==="near")L.near=(L.near||0)+1;}
   L.best=Math.max(L.best,streak());checkCounters();
 }
 function achMatch(){
@@ -636,7 +659,12 @@ function showMap(on){
   layers.push(L.marker(line.at(-1),{icon:ic}).bindTooltip(r.d.iata||r.d.icao,{permanent:true,direction:"top",offset:[0,-7],className:"apt"}).addTo(map));
   const last=drawTrail().at(-1);
   planeMk=L.marker(last,{icon:L.divIcon({className:"",html:PLANE_SVG(live?.track||0),iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:1000}).addTo(map);layers.push(planeMk);
-  map.fitBounds(L.latLngBounds(line.concat(unwrap(r.trail,r.o.lon),r._ahead||[])),{padding:[34,34]});
+  let extra=[];
+  if(r.me){const mp=unwrap([[r.me.lat,r.me.lon]],r.o.lon)[0];extra=[mp];
+    layers.push(L.marker(mp,{icon:L.divIcon({className:"",html:'<div class="me-ic"></div>',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:900}).bindTooltip("Du",{permanent:true,direction:"bottom",offset:[0,8],className:"apt"}).addTo(map));}
+  // Über mir: auf dich und das Flugzeug zoomen, sonst auf die ganze Route
+  if(r.me)map.fitBounds(L.latLngBounds(extra.concat([last])),{padding:[60,60],maxZoom:9});
+  else map.fitBounds(L.latLngBounds(line.concat(unwrap(r.trail,r.o.lon),r._ahead||[])),{padding:[34,34]});
 }
 function updatePlane(){
   if(!map||!planeMk||!live||!G()||!G().round)return;
@@ -677,6 +705,10 @@ function calc(){
 const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
 function tick(){
   const c=calc();
+  const rr=G()&&G().round;
+  if(rr&&rr.me&&live&&live.lat!=null){const km=dist([rr.me.lat,rr.me.lon],[live.lat,live.lon])*1.852,dir=DIRS[Math.round(bearing([rr.me.lat,rr.me.lon],[live.lat,live.lon])/45)%8];
+    const altm=typeof live.alt_baro==="number"?Math.round(live.alt_baro*0.3048/100)*100:null;
+    set("rel",km<3?`Direkt über dir${altm?`, in ${altm.toLocaleString("de-DE")} m Höhe`:""}`:`${Math.round(km)} km im ${dir} von dir${altm?` · ${altm.toLocaleString("de-DE")} m hoch`:""}`);}
   if(c&&live){
     const vr=live.baro_rate||0;
     set("alt",live.alt_baro==="ground"?"Boden":live.alt_baro.toLocaleString("de-DE")+" ft"+(vr>500?" ↗":vr<-500?" ↘":""));
@@ -698,10 +730,10 @@ function render(){
   if(phase==="menu"||!G()){showMap(false);renderMenu(root);return;}
   renderHead(root);
   if(phase==="loading"){showMap(false);
-    below.appendChild($(`<section class="panel wait"><div class="scope"></div><b id="status">Radar läuft …</b><span>Suche einen ${G().cat==="long"?"Langstreckenflug":G().cat==="short"?"Kurz- oder Mittelstreckenflug":"Linienflug"}, der gerade in der Luft ist</span></section>`));
+    below.appendChild($(`<section class="panel wait"><div class="scope"></div><b id="status">Radar läuft …</b><span>Suche einen ${G().cat==="long"?"Langstreckenflug":G().cat==="short"?"Kurz- oder Mittelstreckenflug":"Linienflug"}, der gerade ${G().area==="near"?"in deiner Nähe fliegt":"in der Luft ist"}</span></section>`));
     dock([btn("sec","Abbrechen",()=>{searchCtl.cancelled=true;phase=G().round?"game":"menu";render();})]);return;}
   if(phase==="error"){showMap(false);
-    below.appendChild($(`<section class="panel problem"><b>Kein Live-Flug gefunden</b><span>Die Live-Quellen sind gerade nicht erreichbar oder es passte kein Flug. Versuch es nochmal. Wenn es wiederholt scheitert, schick Claude einen Screenshot dieser Details.</span><div class="diag">${esc(DIAG.join("\n")||"keine Details")}</div></section>`));
+    below.appendChild($(`<section class="panel problem"><b>${errMsg&&G().area==="near"&&!G().me?"Kein Standort":"Kein Live-Flug gefunden"}</b><span>${esc(errMsg||"Die Live-Quellen sind gerade nicht erreichbar oder es passte kein Flug. Versuch es nochmal. Wenn es wiederholt scheitert, schick Claude einen Screenshot dieser Details.")}</span>${errMsg?"":`<div class="diag">${esc(DIAG.join("\n")||"keine Details")}</div>`}</section>`));
     dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Nochmal suchen",newRound)]);return;}
   if(phase==="final"){showMap(false);renderFinal(below);return;}
   const r=G().round;if(!r){dock([btn("cta","Flug ziehen",newRound)]);return;}
@@ -735,6 +767,10 @@ function renderMenu(root){
   ["long","short","all"].forEach(k=>{const b=$(`<button class="opt-row" role="radio" aria-checked="${st.cat===k}"><span class="ic">${ICON[k]}</span><span><div class="t">${CATS[k].t}</div><div class="d">${CATS[k].d}</div></span><span class="radio"></span></button>`);
     b.onclick=()=>{st.cat=k;save();render();};cl.appendChild(b);});
   cg.appendChild(cl);root.appendChild(cg);
+  const ag=$(`<div class="group"><div class="cap">Gebiet</div></div>`),as=$(`<div class="seg" role="group" aria-label="Gebiet"></div>`);
+  [["world","Weltweit","Flüge rund um den Globus"],["near","Über mir","Flüge in deiner Nähe"]].forEach(([k,t,s2])=>{
+    const b=$(`<button aria-pressed="${st.area===k}">${t}<small>${s2}</small></button>`);b.onclick=()=>{st.area=k;save();render();};as.appendChild(b);});
+  ag.appendChild(as);root.appendChild(ag);
   const lg=$(`<div class="group"><div class="cap">Matchlänge</div></div>`),ls=$(`<div class="seg three" role="group" aria-label="Matchlänge"></div>`);
   [[5,"5 Runden","kurz"],[10,"10 Runden","Standard"],[0,"Endlos","frei spielen"]].forEach(([k,t,s2])=>{
     const b=$(`<button aria-pressed="${st.rounds===k}">${t}<small>${s2}</small></button>`);b.onclick=()=>{st.rounds=k;save();render();};ls.appendChild(b);});
@@ -747,7 +783,7 @@ function renderHead(root){
   const g=G(),sc=scores();
   const bar=$(`<div class="bar"></div>`);
   bar.appendChild(btn("back",`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>Menü`,()=>{phase="menu";render();}));
-  bar.appendChild($(`<span class="tag">${g.mode==="solo"?"Solo":"1 vs 1"} · ${CATS[g.cat].t}</span>`));root.appendChild(bar);
+  bar.appendChild($(`<span class="tag">${g.mode==="solo"?"Solo":"1 vs 1"} · ${g.area==="near"?"Über mir · ":""}${CATS[g.cat].t}</span>`));root.appendChild(bar);
   const rn=g.history.length+(g.round&&!g.round.revealed?1:0),rlabel=g.rounds?`${Math.max(rn,1)}/${g.rounds}`:(rn||"–");
   if(g.mode==="solo"){const n=g.history.length,pct=n?Math.round(hits("p1")/n*100):0;
     root.appendChild($(`<section class="panel board solo">
@@ -772,7 +808,7 @@ function renderFlight(below,r){
       <div><span class="cap">Bis Ziel</span><span class="v" id="rem">–</span></div>
       <div><span class="cap">Höhe</span><span class="v" id="alt">–</span></div>
       <div><span class="cap">Tempo</span><span class="v" id="gs">–</span></div>
-    </div><span class="fine" id="tracenote" style="margin-top:12px" ${r.traceNote?"":"hidden"}>${esc(r.traceNote||"")}</span></section>`));
+    </div>${r.me?`<div class="rel" id="rel">–</div>`:""}<span class="fine" id="tracenote" style="margin-top:12px" ${r.traceNote?"":"hidden"}>${esc(r.traceNote||"")}</span></section>`));
 }
 function renderGuesses(below,r){
   const g=G(),solo=g.mode==="solo";
@@ -838,7 +874,7 @@ function renderFinal(below){
   if(g.mode==="solo"&&g.newAch&&g.newAch.length){const na=$(`<section class="panel newach"><span class="cap">Neue Abzeichen in diesem Match</span></section>`);
     g.newAch.forEach(id=>{const a=ACH.find(x=>x.id===id);na.appendChild($(`<div class="row"><span class="badge on">${BADGE}</span><div><b style="font-weight:500">${esc(a.t)}</b><div class="fine" style="color:var(--muted)">${esc(a.d)}</div></div></div>`));});
     below.insertBefore(na,below.children[1]);}
-  dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",()=>{S.setup.mode=g.mode;S.setup.cat=g.cat;S.setup.rounds=g.rounds;startGame();})]);
+  dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",()=>{S.setup.mode=g.mode;S.setup.cat=g.cat;S.setup.rounds=g.rounds;S.setup.area=g.area||"world";startGame();})]);
 }
 load();
 if(S.game&&S.game.round&&!S.game.finished)phase="game";
