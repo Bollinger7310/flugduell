@@ -32,6 +32,7 @@ Live-Quiz fürs iPhone: Ein echter Linienflug, der gerade in der Luft ist, wird 
 - 1 vs 1: Tipps verdeckt; Singleplayer: sofortige Auflösung
 - Auflösung: Typ laut Transponder, Submodell, Kennzeichen, Foto, Link zu Flightradar24
 - 23 Abzeichen im Singleplayer (dauerhaft gespeichert, Einblendung beim Freischalten, Übersicht im Menü)
+- Abwechslung: Modell und Airline der letzten 2 Runden werden nicht wiederholt; kürzlich gespielte und im Gebiet häufige Typen werden abgewertet
 - Ausgeschlossen: Fracht, Privat, Militär, alles außer Airbus/Boeing
 
 ## Design

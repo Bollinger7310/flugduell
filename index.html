@@ -511,7 +511,23 @@ function legFor(rt,pos){
   return b;
 }
 let searchCtl=null;
+// Abwechslung: kürzlich gespielte Modelle und Airlines werden seltener gezogen, häufige Typen im Gebiet abgewertet
+function varietyPick(cands,recent,me,n){
+  const mRecent=recent.map(h=>h.answer),aRecent=recent.map(h=>(h.cs||"").slice(0,3));
+  const last2M=mRecent.slice(-2),last2A=aRecent.slice(-2);
+  const freq={};cands.forEach(a=>{const m=TYPE[a.t];freq[m]=(freq[m]||0)+1;});
+  let pool=cands.filter(a=>{const m=TYPE[a.t],al=parseCs(a).al;return !last2M.includes(m)&&!last2A.includes(al);});
+  if(pool.length<2)pool=cands.filter(a=>TYPE[a.t]!==mRecent.at(-1)&&parseCs(a).al!==aRecent.at(-1));
+  if(!pool.length)pool=cands;
+  const scored=pool.map(a=>{const m=TYPE[a.t],al=parseCs(a).al;
+    let w=1/(1+2.5*mRecent.filter(x=>x===m).length+1.5*aRecent.filter(x=>x===al).length);
+    w*=1/Math.sqrt(freq[m]||1);
+    if(me)w*=1/(1+dist([me.lat,me.lon],[a.lat,a.lon])/60);
+    return {a,k:Math.pow(Math.random(),1/w)};});
+  return scored.sort((x,y)=>y.k-x.k).slice(0,n).map(x=>x.a);
+}
 async function findFlight(exclude,cat,me){
+  const recent=(G()&&G().history||[]).slice(-6);
   // Weltweit: zufällige Regionen. Über mir: erst 100 nm, dann 250 nm um den eigenen Standort, nächste Flüge zuerst
   const regions=me?[[me.lat,me.lon,100],[me.lat,me.lon,250]]:[...REGIONS].sort(()=>Math.random()-.5).slice(0,4).map(([a,b])=>[a,b,180]);
   for(let i=0;i<regions.length;i++){
@@ -521,7 +537,7 @@ async function findFlight(exclude,cat,me){
     const [la,lo,rad]=regions[i];
     let data;try{data=await adsbAny(1,la,lo,rad);}catch(e){note("Gebiet "+(i+1)+": keine Daten");if(i>=1&&!best)return null;continue;}
     let cands=data.ac.filter(a=>isCandidate(a,cat,me?2500:12000)).filter(a=>!exclude.has(a.hex));
-    cands=me?cands.sort((a,b)=>dist([me.lat,me.lon],[a.lat,a.lon])-dist([me.lat,me.lon],[b.lat,b.lon])).slice(0,8):cands.sort(()=>Math.random()-.5).slice(0,6);
+    cands=varietyPick(cands,recent,me,me?8:6);
     note(`${data.src}: ${data.ac.length} Flugzeuge, ${cands.length} Kandidaten`);
     if(!cands.length)continue;
     setStatus(`${cands.length} Kandidaten gefunden, prüfe Routen …`);
@@ -836,7 +852,7 @@ function btn(cls,txt,fn,dis){const b=$(`<button type="button" class="${cls}">${t
 function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
-const APP_VERSION="1.5";
+const APP_VERSION="1.6";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
