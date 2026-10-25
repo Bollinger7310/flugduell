@@ -832,19 +832,25 @@ function tick(){
     set("livetxt",age>40?`Signal weg · ${Math.max(1,Math.round(age/60))} min`:"Live");}
 }
 function dock(btns){const d=document.getElementById("dock"),i=document.getElementById("dockIn");i.innerHTML="";d.hidden=!btns.length;btns.forEach(b=>i.appendChild(b));}
-function btn(cls,txt,fn,dis){const b=$(`<button class="${cls}">${txt}</button>`);b.onclick=fn;if(dis)b.disabled=true;return b;}
+function btn(cls,txt,fn,dis){const b=$(`<button type="button" class="${cls}">${txt}</button>`);b.onclick=fn;b.onmousedown=e=>e.preventDefault();if(dis)b.disabled=true;return b;}
 function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
+const APP_VERSION="1.4";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
   const keepY=view===lastView?window.scrollY:0;lastView=view;
+  const ae=document.activeElement;if(ae&&ae.blur&&ae!==document.body)ae.blur();
   document.body.style.minHeight=document.body.scrollHeight+"px";
   renderInner();
-  document.body.style.minHeight="";
   window.scrollTo(0,keepY);
+  // iOS verschiebt die Seite beim Schließen der Tastatur nachträglich – mehrfach zurücksetzen
+  if(keepY){const fix=()=>{if(lastView===view&&Math.abs(window.scrollY-keepY)>2)window.scrollTo(0,keepY);};
+    requestAnimationFrame(fix);[60,180,400,700].forEach(t=>setTimeout(fix,t));}
+  setTimeout(()=>{document.body.style.minHeight="";},750);
 }
+if("scrollRestoration" in history)history.scrollRestoration="manual";
 function renderInner(){
   const root=document.getElementById("root"),below=document.getElementById("below");root.innerHTML="";below.innerHTML="";
   if(phase==="ach"){showMap(false);renderAch(root);return;}
@@ -890,6 +896,7 @@ function renderMenu(root){
   const fa=$(`<button class="flink"><span class="badge sm ${got?"on":""}">${BADGE}</span>Abzeichen <span class="num">${got}/${ACH.length}</span></button>`);fa.onclick=()=>{phase="ach";render();window.scrollTo(0,0);};
   const fr=$(`<button class="flink"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Spielregeln</button>`);fr.onclick=()=>{phase="rules";render();window.scrollTo(0,0);};
   foot.append(fa,fr);root.appendChild(foot);
+  root.appendChild($(`<div class="lastset" style="margin-top:6px">Version ${APP_VERSION}</div>`));
   dock([]);
 }
 function segRow(label,opts,cur,fn){
