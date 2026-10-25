@@ -835,7 +835,17 @@ function dock(btns){const d=document.getElementById("dock"),i=document.getElemen
 function btn(cls,txt,fn,dis){const b=$(`<button class="${cls}">${txt}</button>`);b.onclick=fn;if(dis)b.disabled=true;return b;}
 function setStatus(t){set("status",t);}
 
+// Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
+let lastView="";
 function render(){
+  const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
+  const keepY=view===lastView?window.scrollY:0;lastView=view;
+  document.body.style.minHeight=document.body.scrollHeight+"px";
+  renderInner();
+  document.body.style.minHeight="";
+  window.scrollTo(0,keepY);
+}
+function renderInner(){
   const root=document.getElementById("root"),below=document.getElementById("below");root.innerHTML="";below.innerHTML="";
   if(phase==="ach"){showMap(false);renderAch(root);return;}
   if(phase==="setup"){showMap(false);renderSetup(root);return;}
