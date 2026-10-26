@@ -467,6 +467,7 @@ const REGIONS=[[50.1,8.6],[51.5,-0.4],[49.0,2.5],[52.3,4.8],[41.3,28.8],[40.5,-3
 [37.6,-122.4],[32.9,-97.0],[43.7,-79.6],[25.8,-80.3],[47.4,-122.3],[-23.4,-46.5],[19.4,-99.1],[-26.1,28.2],[60.3,24.9],[55.6,12.6]];
 const PIDS=["p1","p2"];
 
+const disp=m=>m&&/^7\d7/.test(m)?"B"+m:m;
 function normalize(raw){
   let s=(raw||"").toUpperCase().replace(/AIRBUS|BOEING|[\s\-_.]/g,"");
   if(!s) return null;
@@ -596,8 +597,8 @@ async function findFlight(exclude,cat,me){
 // ===================== Kategorien =====================
 const LONG=new Set(["A330","A340","A350","A380","747","767","777","787"]);
 const SHORT=new Set(["A220","A318","A319","A320","A321","737","757"]);
-const CATS={long:{t:"Langstrecke",d:"A330, A350, A380, 747, 777, 787 …",set:LONG},
-  short:{t:"Kurz- & Mittelstrecke",d:"A220, A320-Familie, 737, 757",set:SHORT},
+const CATS={long:{t:"Langstrecke",d:"A330, A350, A380, B747, B777, B787 …",set:LONG},
+  short:{t:"Kurz- & Mittelstrecke",d:"A220, A320-Familie, B737, B757",set:SHORT},
   all:{t:"Alle Typen",d:"Jeder Airbus und Boeing im Linienverkehr",set:null}};
 const inCat=(model,cat)=>!CATS[cat].set||CATS[cat].set.has(model);
 const fleetIn=(al,cat)=>AL[al][1].filter(t=>inCat(t,cat));
@@ -668,7 +669,7 @@ function drawOptions(){
   save();render();
 }
 function lockText(pid){const raw=document.getElementById("in-"+pid).value;const m=normalize(raw);
-  if(!m){const e=document.getElementById("err-"+pid);e.textContent="Typ nicht erkannt. Beispiele: A330, 787, B77W";e.hidden=false;return;}
+  if(!m){const e=document.getElementById("err-"+pid);e.textContent="Typ nicht erkannt. Beispiele: A330, B787, B77W";e.hidden=false;return;}
   const r=G().round;r.guess[pid]=m;r.raw=r.raw||{};r.raw[pid]=raw.trim();save();afterGuess();}
 function pickOption(pid,t){G().round.guess[pid]=t;G().round.mode[pid]="mc";save();afterGuess();}
 function afterGuess(){if(G().mode==="solo")reveal();else render();}
@@ -679,7 +680,7 @@ const L_=()=>S.life;
 const ACH=[
  {g:"Erste Schritte",id:"first",t:"Erstflug",d:"Den ersten Flugzeugtyp richtig erkannt",goal:1,val:()=>L_().hits},
  {g:"Erste Schritte",id:"free10",t:"Ohne Spickzettel",d:"10 Treffer per Freitext",goal:10,val:()=>L_().free},
- {g:"Erste Schritte",id:"sub1",t:"Typenkenner",d:"Ein Submodell exakt benannt, z. B. 777-300ER",goal:1,val:()=>L_().sub},
+ {g:"Erste Schritte",id:"sub1",t:"Typenkenner",d:"Ein Submodell exakt benannt, z. B. B777-300ER",goal:1,val:()=>L_().sub},
  {g:"Erste Schritte",id:"sub10",t:"Datenblatt im Kopf",d:"10 Submodelle exakt benannt",goal:10,val:()=>L_().sub},
  {g:"Serien",id:"st5",t:"Steigflug",d:"5 Treffer in Folge",goal:5,val:()=>L_().best},
  {g:"Serien",id:"st10",t:"Reiseflughöhe",d:"10 Treffer in Folge",goal:10,val:()=>L_().best},
@@ -914,7 +915,7 @@ function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
 let confirmDel=false;
-const APP_VERSION="1.12";
+const APP_VERSION="1.13";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
@@ -1022,12 +1023,12 @@ function renderRules(root){
   root.appendChild($(`<div class="hero2"><span class="cap">Briefing</span><h1 style="margin-top:8px">So geht's</h1><p class="sub">Irgendwo auf der Welt ist gerade ein Flugzeug in der Luft. Du bekommst seine Daten und musst herausfinden, was für ein Jet es ist.</p></div>`));
   const steps=[
     ["1","Der Flug","Du siehst Airline, Flugnummer, Route, Höhe und Tempo, dazu die Position live auf der Karte. Alles echt, direkt vom Transponder des Flugzeugs."],
-    ["2","Dein Tipp","Tipp das Modell ein, z. B. A350, 787 oder 737. Das Modell reicht, die genaue Variante musst du nicht kennen. Zu schwer? „3 Typen zeigen“ macht eine Auswahl daraus, kostet aber Punkte."],
+    ["2","Dein Tipp","Tipp das Modell ein, z. B. A350, B787 oder B737. Das Modell reicht, die genaue Variante musst du nicht kennen. Zu schwer? „3 Typen zeigen“ macht eine Auswahl daraus, kostet aber Punkte."],
     ["3","Die Auflösung","Der Transponder verrät, was wirklich fliegt. Dazu gibt es Kennzeichen, Variante und meist ein Foto genau dieser Maschine."]];
   const st=$(`<section class="panel steps"></section>`);
   steps.forEach(([n,t,d])=>st.appendChild($(`<div class="step"><span class="sn">${n}</span><div><b>${t}</b><p>${d}</p></div></div>`)));
   root.appendChild(st);
-  root.appendChild($(`<div class="group"><div class="cap">Punkte</div><div class="panel rules"><b>+2</b><span>Modell per Freitext erkannt</span><b>+1</b><span>Modell aus drei Vorschlägen gewählt</span><b>+1</b><span>Bonus, wenn du im Freitext die genaue Variante triffst, z. B. A350-1000 oder 777-300ER</span></div></div>`));
+  root.appendChild($(`<div class="group"><div class="cap">Punkte</div><div class="panel rules"><b>+2</b><span>Modell per Freitext erkannt</span><b>+1</b><span>Modell aus drei Vorschlägen gewählt</span><b>+1</b><span>Bonus, wenn du im Freitext die genaue Variante triffst, z. B. A350-1000 oder B777-300ER</span></div></div>`));
   root.appendChild($(`<div class="group"><div class="cap">Modi</div><div class="panel rules"><b>Solo</b><span>Spiel gegen dich selbst, jage Serien und schalte Abzeichen frei.</span><b>1 vs 1</b><span>Zwei Spieler, ein Handy. Beide tippen verdeckt, aufgelöst wird gemeinsam.</span><b>Über mir</b><span>Nur Flüge in deiner Nähe. Raus, hochschauen, raten.</span></div></div>`));
   root.appendChild($(`<p class="fine" style="padding:0 6px;line-height:1.5">Im Spiel sind nur Passagierflüge mit Airbus- und Boeing-Jets. Fracht-, Privat- und Militärflüge sind ausgeschlossen. Live-Daten von adsb.lol, Routen von adsbdb, Fotos von Planespotters.net, Karten von Esri.</p>`));
   dock([btn("cta","Klar, los geht's",()=>{phase="menu";render();})]);
@@ -1080,7 +1081,7 @@ function renderGuesses(below,r){
   pids().forEach((pid,i)=>{
     const el=$(`<section class="panel gc ${solo?"":"duo"}" style="--c:${PCOL[i]};--cs:${PSOFT[i]}"><div class="who"><i></i><span>${esc(g.players[i])}</span></div></section>`);
     if(r.guess[pid]){el.appendChild($(`<div class="sealed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Tipp verdeckt</div>`));el.appendChild(btn("undo","Ändern",()=>unlock(pid)));}
-    else if(r.mode[pid]==="mc"&&r.options){for(const t of r.options)el.appendChild(btn("choice",t,()=>pickOption(pid,t)));}
+    else if(r.mode[pid]==="mc"&&r.options){for(const t of r.options)el.appendChild(btn("choice",disp(t),()=>pickOption(pid,t)));}
     else{
       const inp=$(`<input id="in-${pid}" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="Typ" aria-label="Tipp von ${esc(g.players[i])}">`);
       inp.value=r.draft[pid]||"";inp.oninput=()=>{r.draft[pid]=inp.value;save();};inp.onkeydown=e=>{if(e.key==="Enter")lockText(pid)};
@@ -1096,11 +1097,11 @@ function renderVerdict(below,r){
   const box=$(`<section class="panel verdict"><div class="vphoto" id="photo"></div></section>`);
   const res=$(`<div class="res ${solo?"solo":""}"></div>`);
   pids().forEach((pid,i)=>{const gu=h.guess[pid],ok=gu===h.answer,p=ptsOf(h,pid),raw=G().round.raw&&G().round.raw[pid];
-    const shown=gu?(h.mode[pid]==="mc"?gu+" · Auswahl":(raw||gu)+(h.bonus&&h.bonus[pid]?" · Submodell":" · Freitext")):"kein Tipp";
+    const shown=gu?(h.mode[pid]==="mc"?disp(gu)+" · Auswahl":(raw||disp(gu))+(h.bonus&&h.bonus[pid]?" · Submodell":" · Freitext")):"kein Tipp";
     res.appendChild($(`<div class="${ok?"ok":"bad"}"><span>${esc(g.players[i])}<small>${esc(shown)}</small></span><em>${p?"+"+p:"±0"}</em></div>`));});
   box.appendChild(res);
   box.appendChild($(`<span class="fine"><a href="https://www.flightradar24.com/${esc(r.cs)}" target="_blank" rel="noopener">Flug auf Flightradar24 öffnen</a></span>`));
-  below.appendChild(box);vOverlay=`<div class="ov"><div class="cap">Laut Transponder</div><div class="ty">${NAMES[h.answer]}</div><div class="sub">${esc(SUB[r.type]||r.type)} · ${esc(r.reg||"Kennzeichen unbekannt")}</div></div>`;vCode=r.type;paintPhoto(r.hex);if(photoCache[r.hex]===undefined)loadPhoto(r);
+  below.appendChild(box);vOverlay=`<div class="ov"><div class="cap">Laut Transponder</div><div class="ty">${NAMES[h.answer]}</div><div class="sub">${esc(disp(SUB[r.type])||r.type)} · ${esc(r.reg||"Kennzeichen unbekannt")}</div></div>`;vCode=r.type;paintPhoto(r.hex);if(photoCache[r.hex]===undefined)loadPhoto(r);
   if(isOver())dock([btn("cta","Ergebnis ansehen",()=>{G().finished=true;if(G().mode==="solo")achMatch();save();phase="final";render();showToasts();})]);
   else dock([btn("cta","Nächster Flug",newRound)]);
 }

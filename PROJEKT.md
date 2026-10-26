@@ -24,7 +24,7 @@ Live-Quiz fürs iPhone: Ein echter Linienflug, der gerade in der Luft ist, wird 
 
 ## Spielfunktionen
 - Startbildschirm: Kacheln Singleplayer / 1 vs 1, darunter Abzeichen und Spielregeln; Tipp auf Kachel öffnet „Spiel einrichten“ (Namen nur bei 1 vs 1, Flugzeuge, Gebiet, Runden, letzte Auswahl voreingestellt). Modi: Singleplayer oder Lokal 1 vs 1 (Standardnamen „Player 1“ / „Player 2“, änderbar)
-- Flugzeuge: Langstrecke (A330, A340, A350, A380, 747, 767, 777, 787), Kurz- & Mittelstrecke (A220, A319–A321, 737, 757), Alle Typen
+- Flugzeuge: Langstrecke (A330, A340, A350, A380, B747, B767, B777, B787), Kurz- & Mittelstrecke (A220, A319–A321, B737, B757), Alle Typen. Boeing wird in der Anzeige immer mit „B“ geschrieben (intern ohne, Funktion disp())
 - Gebiet: Weltweit oder „Über mir“ (Standort, nächster Flug im Umkreis 100 nm, dann 250 nm; zeigt Entfernung/Richtung)
 - Matchlänge: 5, 10 oder Endlos; Ergebnis-Bildschirm mit Statistik und „Revanche“
 - Tippen: erst Freitext, optional „3 Typen zeigen“ → Multiple Choice (nur echte Flottentypen der Airline, plausibel für die Streckenlänge)
