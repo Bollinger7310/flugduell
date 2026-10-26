@@ -914,7 +914,7 @@ function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
 let confirmDel=false;
-const APP_VERSION="1.11";
+const APP_VERSION="1.12";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
@@ -966,8 +966,10 @@ function renderMenu(root){
   if(g&&g.round&&!g.finished){const sc=scores(),txt=g.mode==="solo"?`${sc.p1} Punkte · Runde ${g.history.length+(g.round.revealed?0:1)}`:`${g.players[0]} ${sc.p1} : ${sc.p2} ${g.players[1]}`;
     const card=$(`<section class="panel rcard"></section>`);
     if(!confirmDel){
-      const b=$(`<button type="button" class="rmain"><div><b>Spiel fortsetzen</b><div class="s">${esc(txt)}</div></div><span class="go">Weiter →</span></button>`);
-      b.onclick=()=>{phase="game";render();if(!live)poll();};
+      // Letzte Runde schon aufgelöst, aber Ergebnis noch nicht angesehen: kein laufendes Spiel mehr
+      const over=isOver();
+      const b=$(`<button type="button" class="rmain"><div><b>${over?"Match beendet":"Spiel fortsetzen"}</b><div class="s">${esc(txt)}</div></div><span class="go">${over?"Ergebnis":"Weiter"} →</span></button>`);
+      b.onclick=over?()=>{g.finished=true;if(g.mode==="solo")achMatch();save();phase="final";render();showToasts();}:()=>{phase="game";render();if(!live)poll();};
       const x=btn("rx",`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,()=>{confirmDel=true;render();});
       x.setAttribute("aria-label","Spiel löschen");card.append(b,x);
     }else{
