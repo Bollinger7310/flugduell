@@ -290,6 +290,12 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .setbox{padding:6px 16px 14px;display:flex;flex-direction:column}
 .srow{display:flex;flex-direction:column;gap:8px;padding-top:14px}
 .seg.mini button{padding:10px 6px;font-size:14px}
+.custom{display:flex;align-items:center;gap:8px;padding-top:10px}
+.custom input{width:84px;text-align:center;font:600 20px var(--m);padding:10px 6px;border-radius:12px;border:1px solid var(--line-strong);background:var(--raised);color:var(--ink);outline:none;-moz-appearance:textfield}
+.custom input::-webkit-outer-spin-button,.custom input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.custom input:focus{border-color:var(--signal)}
+.custom .stp{width:44px;height:44px;border-radius:12px;background:var(--raised);border:1px solid var(--line);font:500 22px var(--f);color:var(--ink-2)}
+.custom span{font-size:13px;color:var(--muted);margin-left:4px}
 .hintline{font-size:12px;color:var(--muted);padding:8px 2px 0}
 .rcard{display:grid;grid-template-columns:1fr auto;align-items:stretch;overflow:hidden}
 .rmain{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:14px 4px 14px 16px;text-align:left;min-width:0}
@@ -304,6 +310,8 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 .rbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .rb{padding:11px;border-radius:12px;font-weight:600;background:var(--raised);border:1px solid var(--line)}
 .rb.del{background:var(--bad-soft);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 30%,transparent)}
+.det summary{font-size:12px;color:var(--muted);cursor:pointer;margin-top:4px}
+.det .diag{margin-top:8px}
 .steps{padding:4px 0}
 .step{display:grid;grid-template-columns:auto 1fr;gap:14px;padding:14px 18px}
 .step+.step{border-top:1px solid var(--line)}
@@ -492,39 +500,36 @@ function gc(a,b,n=64){const p1=[rad(a[0]),rad(a[1])],p2=[rad(b[0]),rad(b[1])],d=
 function unwrap(pts,ref){const o=[];let prev=ref??null;for(const p of pts){let lon=p[1];if(prev!==null){while(lon-prev>180)lon-=360;while(lon-prev<-180)lon+=360;}o.push([p[0],lon]);prev=lon;}return o;}
 
 // ===================== Live-Daten =====================
-const SRC=[
- ["adsb.lol",(la,lo,r)=>`https://api.adsb.lol/v2/point/${la}/${lo}/${r}`,h=>`https://api.adsb.lol/v2/hex/${h}`],
- ["adsb.fi",(la,lo,r)=>`https://opendata.adsb.fi/api/v2/lat/${la}/lon/${lo}/dist/${r}`,h=>`https://opendata.adsb.fi/api/v2/hex/${h}`],
- ["airplanes.live",(la,lo,r)=>`https://api.airplanes.live/v2/point/${la}/${lo}/${r}`,h=>`https://api.airplanes.live/v2/hex/${h}`]];
-// Eigene Cloudflare-Weiterleitung zuerst, direkt als Reserve
+// Live-Daten laufen ausschließlich über die eigene Cloudflare-Weiterleitung zu adsb.lol.
+// (adsb.fi, airplanes.live und direkte Abrufe sind dauerhaft gesperrt und würden schwache Verbindungen nur zusätzlich belasten.)
 const PROXY="https://flugduell-proxy.hendrik-bollinger.workers.dev/?url=";
-const VIA=[["Cloudflare",u=>PROXY+encodeURIComponent(u)],["direkt",u=>u]];
+const viaProxy=u=>PROXY+encodeURIComponent(u);
+const SRC={area:(la,lo,r)=>`https://api.adsb.lol/v2/point/${la}/${lo}/${r}`,hex:h=>`https://api.adsb.lol/v2/hex/${h}`};
 let DIAG=[];const note=m=>{DIAG.push(m);if(DIAG.length>80)DIAG.shift();};
-const errTxt=e=>e.name==="AbortError"?"Zeitüberschreitung":/Load failed|Failed to fetch|NetworkError/.test(e.message)?"blockiert":e.message;
-let best=null; // {s,v} letzte funktionierende Kombination
+const errTxt=e=>e.name==="AbortError"?"Zeitüberschreitung":/Load failed|Failed to fetch|NetworkError|network/i.test(e.message)?"keine Verbindung":e.message;
+let netFails=0; // aufeinanderfolgende Netzfehler (Zeitüberschreitung/keine Verbindung)
 async function getJSON(url,ms=9000,signal){const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms);
   const onAbort=()=>ctl.abort();signal&&signal.addEventListener("abort",onAbort);
-  try{const r=await fetch(url,{signal:ctl.signal,cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);const txt=await r.text();return JSON.parse(txt);}
+  try{const r=await fetch(url,{signal:ctl.signal,cache:"no-store"});if(!r.ok){const e=new Error("HTTP "+r.status);e.status=r.status;throw e;}const txt=await r.text();return JSON.parse(txt);}
   finally{clearTimeout(t);signal&&signal.removeEventListener("abort",onAbort);}}
-// Alle Kombinationen parallel – die erste Antwort gewinnt
-async function race(attempts,ms){
-  const ctl=new AbortController();
-  try{return await Promise.any(attempts.map(a=>getJSON(a.url,ms,ctl.signal).then(d=>({d,a})).catch(e=>{if(!ctl.signal.aborted)note(`${a.label}: ${errTxt(e)}`);throw e;})));}
-  catch(e){throw new Error("alle Wege blockiert");}
-  finally{ctl.abort();}
+// Mit Wiederholung: bei Zeitüberschreitung, Netzfehler, 429 und 5xx bis zu `tries` Versuche mit wachsender Wartezeit
+async function getRetry(url,label,tries=3,base=9000){
+  let last;
+  for(let i=0;i<tries;i++){
+    if(searchCtl&&searchCtl.cancelled)throw new Error("abgebrochen");
+    try{const d=await getJSON(url,base+i*4000);netFails=0;return d;}
+    catch(e){last=e;note(`${label}: ${errTxt(e)}${i<tries-1?" – neuer Versuch":""}`);
+      const net=!e.status;if(net)netFails++;
+      if(e.status&&e.status!==429&&e.status<500)break;
+      if(i<tries-1)await new Promise(r=>setTimeout(r,700*(i+1)));}
+  }
+  throw last;
 }
-async function adsbAny(kind,...args){
-  if(best){try{const d=await getJSON(best.v[1](best.s[kind](...args)),8000);return {ac:d.ac||d.aircraft||[],src:best.s[0]+" über "+best.v[0]};}catch(e){note(`${best.s[0]} über ${best.v[0]}: ${errTxt(e)}`);}}
-  const attempts=[];for(const s of SRC)for(const v of VIA)attempts.push({url:v[1](s[kind](...args)),label:`${s[0]} über ${v[0]}`,s,v});
-  const {d,a}=await race(attempts,10000);best={s:a.s,v:a.v};
-  return {ac:d.ac||d.aircraft||[],src:a.label};
-}
-let adsbdbVia=null;
+async function adsbArea(la,lo,rad){const d=await getRetry(viaProxy(SRC.area(la,lo,rad)),"Live-Daten",3);return {ac:d.ac||[],src:"adsb.lol"};}
+async function adsbHex(h){const d=await getJSON(viaProxy(SRC.hex(h)),8000);return {ac:d.ac||[]};}
 async function routeAdsbdb(cs){
-  const u="https://api.adsbdb.com/v0/callsign/"+cs;let r;
   try{
-    if(adsbdbVia){try{r=await getJSON(adsbdbVia[1](u),8000);}catch(e){r=null;}}
-    if(!r){const res=await race(VIA.map(v=>({url:v[1](u),label:"Route über "+v[0],v})),9000);r=res.d;adsbdbVia=res.a.v;}
+    const r=await getRetry(viaProxy("https://api.adsbdb.com/v0/callsign/"+cs),"Route "+cs,2,8000);
     const f=r.response&&r.response.flightroute;if(!f)return null;
     const m=a=>({icao:a.icao_code,iata:a.iata_code,name:a.name,location:a.municipality,lat:a.latitude,lon:a.longitude});
     return {callsign:cs,_airports:[m(f.origin),m(f.destination)],plausible:true};
@@ -565,6 +570,7 @@ function varietyPick(cands,recent,me,n){
 }
 async function findFlight(exclude,cat,me){
   const recent=(G()&&G().history||[]).slice(-6);
+  netDown=false;
   // Weltweit: zufällige Regionen. Über mir: erst 100 nm, dann 250 nm um den eigenen Standort, nächste Flüge zuerst
   const regions=me?[[me.lat,me.lon,100],[me.lat,me.lon,250]]:[...REGIONS].sort(()=>Math.random()-.5).slice(0,4).map(([a,b])=>[a,b,180]);
   for(let i=0;i<regions.length;i++){
@@ -572,7 +578,9 @@ async function findFlight(exclude,cat,me){
     if(i)await new Promise(r=>setTimeout(r,1500));
     setStatus(me?(i===0?"Radar sucht über dir …":"Erweitere den Suchradius …"):(i===0?"Radar läuft …":"Suche in einer anderen Region …"));
     const [la,lo,rad]=regions[i];
-    let data;try{data=await adsbAny(1,la,lo,rad);}catch(e){note("Gebiet "+(i+1)+": keine Daten");if(i>=1&&!best)return null;continue;}
+    let data;try{data=await adsbArea(la,lo,rad);}catch(e){note("Gebiet "+(i+1)+": keine Daten");
+      if(!navigator.onLine){netDown=true;return null;}
+      if(i<regions.length-1){setStatus("Verbindung hakt, versuche es erneut …");}continue;}
     let cands=data.ac.filter(a=>isCandidate(a,cat,me?2500:12000)).filter(a=>!exclude.has(a.hex));
     cands=varietyPick(cands,recent,me,me?8:6);
     note(`${data.src}: ${data.ac.length} Flugzeuge, ${cands.length} Kandidaten`);
@@ -632,7 +640,9 @@ function startGame(){
   S.game={mode:st.mode,cat:st.cat,area:st.area||"world",rounds:st.rounds||0,players:names.map((n,i)=>n.trim()||`Player ${i+1}`),history:[],round:null};
   save();phase="game";newRound();
 }
-let errMsg="";
+let errMsg="",netDown=false,autoRetry=null,autoTries=0;
+// Bei Netzproblemen automatisch erneut suchen, sobald wieder Verbindung besteht
+window.addEventListener("online",()=>{if(phase==="error"&&netDown){autoTries=0;newRound();}});
 function locate(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej({code:2});
   navigator.geolocation.getCurrentPosition(p=>res({lat:+p.coords.latitude.toFixed(3),lon:+p.coords.longitude.toFixed(3)}),rej,{enableHighAccuracy:false,timeout:15000,maximumAge:300000});});}
 const DIRS=["Norden","Nordosten","Osten","Südosten","Süden","Südwesten","Westen","Nordwesten"];
@@ -649,13 +659,20 @@ async function newRound(){
         :"Dein Standort konnte nicht bestimmt werden. Prüf, ob die Ortungsdienste eingeschaltet sind, und versuch es nochmal.";
       phase="error";render();return;}
   }
+  if(!navigator.onLine){netDown=true;phase="error";render();return;}
   let f=null;try{f=await findFlight(recent,G().cat,me);}catch(e){note("Fehler: "+e.message);}
   if(searchCtl.cancelled)return;
+  if(!f&&netFails>0&&!errMsg)netDown=true;
+  if(!f&&netDown){phase="error";render();
+    // bis zu 3 automatische neue Versuche mit Pause
+    if(autoTries<3&&navigator.onLine){autoTries++;clearTimeout(autoRetry);autoRetry=setTimeout(()=>{if(phase==="error")newRound();},6000);}
+    return;}
   if(!f){if(me)errMsg="Gerade fliegt in deiner Nähe (bis ca. 460 km) kein passender Linienflug. Versuch es gleich nochmal oder wähle „Alle Typen“.";phase="error";render();return;}
   f.me=me;
   const g={};pids().forEach(p=>g[p]=null);
   G().round={...f,ac:undefined,options:null,guess:{...g},mode:Object.fromEntries(pids().map(p=>[p,"text"])),draft:{},revealed:false,trail:[[f.ac.lat,f.ac.lon,f.ac.alt_baro]]};
-  live=f.ac;lastOk=Date.now();phase="game";save();render();loadTrace(G().round);
+  autoTries=0;netDown=false;
+  live=f.ac;lastOk=Date.now();phase="game";save();render();
 }
 function drawOptions(){
   const r=G().round,model=TYPE[r.type],total=dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon]);
@@ -745,7 +762,7 @@ async function loadPhoto(r){
     photoCache[key]=null;
     try{
       const urls=[`https://api.planespotters.net/pub/photos/hex/${r.hex}`];if(r.reg)urls.push(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(r.reg)}`);
-      for(const u of urls){const res=await race(VIA.map(v=>({url:v[1](u),label:"Foto über "+v[0]})),9000);const p=res.d&&res.d.photos&&res.d.photos[0];
+      for(const u of urls){const d=await getRetry(viaProxy(u),"Foto",2,9000);const p=d&&d.photos&&d.photos[0];
         if(p){photoCache[key]={src:(p.thumbnail_large||p.thumbnail).src,link:p.link,by:p.photographer};break;}}
     }catch(e){}
     if(!photoCache[key])photoCache[key]=false;
@@ -862,7 +879,7 @@ let polling=false;
 async function poll(){
   const r=G()&&G().round;if(!r||!r.hex||document.hidden||polling||phase!=="game")return;
   polling=true;
-  try{const d=await adsbAny(2,r.hex);const ac=d.ac[0];
+  try{const d=await adsbHex(r.hex);const ac=d.ac[0];
     if(ac&&ac.lat!=null){live=ac;lastOk=Date.now();const last=r.trail.at(-1);
       if(!last||dist(last,[ac.lat,ac.lon])>1){r.trail.push([ac.lat,ac.lon,typeof ac.alt_baro==="number"?ac.alt_baro:null]);if(r.trail.length>800)r.trail.shift();save();}
       updatePlane();}
@@ -915,7 +932,7 @@ function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
 let confirmDel=false;
-const APP_VERSION="1.13";
+const APP_VERSION="1.14";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
@@ -943,8 +960,16 @@ function renderInner(){
     below.appendChild($(`<section class="panel wait"><div class="scope"></div><b id="status">Radar läuft …</b><span>Suche einen ${G().cat==="long"?"Langstreckenflug":G().cat==="short"?"Kurz- oder Mittelstreckenflug":"Linienflug"}, der gerade ${G().area==="near"?"in deiner Nähe fliegt":"in der Luft ist"}</span></section>`));
     dock([btn("sec","Abbrechen",()=>{searchCtl.cancelled=true;phase=G().round?"game":"menu";render();})]);return;}
   if(phase==="error"){showMap(false);
-    below.appendChild($(`<section class="panel problem"><b>${errMsg&&G().area==="near"&&!G().me?"Kein Standort":"Kein Live-Flug gefunden"}</b><span>${esc(errMsg||"Die Live-Quellen sind gerade nicht erreichbar oder es passte kein Flug. Versuch es nochmal. Wenn es wiederholt scheitert, schick Claude einen Screenshot dieser Details.")}</span>${errMsg?"":`<div class="diag">${esc(DIAG.join("\n")||"keine Details")}</div>`}</section>`));
-    dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Nochmal suchen",newRound)]);return;}
+    let title,text,showDiag=false;
+    if(netDown){title=navigator.onLine?"Verbindung zu schwach":"Keine Internetverbindung";
+      text=navigator.onLine?(autoTries&&autoTries<=3?"Die Live-Daten kamen nicht rechtzeitig an. Die App versucht es gleich automatisch noch einmal.":"Die Live-Daten kamen mehrfach nicht rechtzeitig an. Prüf dein Netz und tippe auf „Nochmal suchen“.")
+        :"Sobald du wieder Netz hast, sucht die App automatisch weiter.";}
+    else if(errMsg){title=G().area==="near"&&!G().me?"Kein Standort":"Kein Flug in der Nähe";text=errMsg;}
+    else{title="Kein passender Flug gefunden";text="Gerade passte kein Flug zu deinen Einstellungen. Versuch es nochmal. Wenn es wiederholt scheitert, schick Claude einen Screenshot der Details.";showDiag=true;}
+    const box=$(`<section class="panel problem"><b>${esc(title)}</b><span>${esc(text)}</span></section>`);
+    if(DIAG.length){const det=$(`<details class="det"><summary>Technische Details</summary><div class="diag">${esc(DIAG.join("\n"))}</div></details>`);if(showDiag)det.open=true;box.appendChild(det);}
+    below.appendChild(box);
+    dock([btn("sec","Menü",()=>{clearTimeout(autoRetry);phase="menu";render();}),btn("cta","Nochmal suchen",()=>{clearTimeout(autoRetry);autoTries=0;newRound();})]);return;}
   if(phase==="final"){showMap(false);renderFinal(below);return;}
   const r=G().round;if(!r){dock([btn("cta","Flug ziehen",newRound)]);return;}
   if(r.revealed){renderVerdict(root,r);showMap(true);renderFlight(below,r);}
@@ -958,7 +983,7 @@ const RADAR=`<svg class="radar-bg" viewBox="0 0 230 230" aria-hidden="true"><def
 <circle cx="115" cy="115" r="112" fill="url(#rg)"/><g fill="none" stroke="var(--line-strong)"><circle cx="115" cy="115" r="38"/><circle cx="115" cy="115" r="75"/><circle cx="115" cy="115" r="112"/><path d="M115 3v224M3 115h224"/></g>
 <g class="sw"><path d="M115 115L115 3A112 112 0 0 1 212 59Z" fill="url(#sg)"/></g>
 <g fill="var(--signal)"><circle cx="160" cy="70" r="2.5"/><circle cx="70" cy="150" r="2"/><circle cx="150" cy="168" r="2"/></g></svg>`;
-function setupLine(){const st=S.setup;return `${CAT_SHORT[st.cat]} · ${st.area==="near"?"Über mir":"Weltweit"} · ${st.rounds?st.rounds+" Runden":"Endlos"}`;}
+function setupLine(){const st=S.setup;return `${CAT_SHORT[st.cat]} · ${st.area==="near"?"Über mir":"Weltweit"} · ${st.rounds?st.rounds+(st.rounds===1?" Runde":" Runden"):"Endlos"}`;}
 function renderMenu(root){
   if(lastView&&!lastView.startsWith("menu"))confirmDel=false;
   const g=S.game,got=ACH.filter(a=>S.ach[a.id]).length;
@@ -1014,7 +1039,20 @@ function renderSetup(root){
   box.appendChild($(`<div class="hintline">${esc(CATS[st.cat].d)}</div>`));
   box.appendChild(segRow("Gebiet",[["world","Weltweit"],["near","Über mir"]],st.area,re("area")));
   if(st.area==="near")box.appendChild($(`<div class="hintline">Nutzt deinen Standort für Flüge in deiner Nähe</div>`));
-  box.appendChild(segRow("Runden",[[5,"5"],[10,"10"],[0,"Endlos"]],st.rounds,re("rounds")));
+  // Runden: 5, 10, Endlos oder eigene Zahl (1–99)
+  const preset=[5,10,0].includes(st.rounds)&&!st.customRounds;
+  const rr=segRow("Runden",[[5,"5"],[10,"10"],[0,"Endlos"],["c",preset?"Eigene":String(st.rounds)]],preset?st.rounds:"c",v=>{
+    if(v==="c"){st.customRounds=true;if([5,10,0].includes(st.rounds))st.rounds=15;}else{st.customRounds=false;st.rounds=v;}
+    save();render();if(v==="c")setTimeout(()=>{const i=document.getElementById("rcount");i&&i.focus();i&&i.select();},30);});
+  box.appendChild(rr);
+  if(!preset){
+    const cw=$(`<div class="custom"><button type="button" class="stp" aria-label="Eine Runde weniger">−</button><input id="rcount" type="number" inputmode="numeric" min="1" max="99" aria-label="Anzahl Runden"><button type="button" class="stp" aria-label="Eine Runde mehr">+</button><span>Runden</span></div>`);
+    const inp=cw.querySelector("input");inp.value=st.rounds;
+    const setN=n=>{n=Math.max(1,Math.min(99,Math.round(n)||1));st.rounds=n;inp.value=n;save();const b=rr.querySelectorAll("button")[3];if(b)b.textContent=String(n);};
+    inp.oninput=()=>{const n=parseInt(inp.value,10);if(n>=1&&n<=99){st.rounds=n;save();const b=rr.querySelectorAll("button")[3];if(b)b.textContent=String(n);}};
+    inp.onblur=()=>setN(parseInt(inp.value,10));
+    const [m,p]=cw.querySelectorAll(".stp");m.onclick=()=>setN(st.rounds-1);p.onclick=()=>setN(st.rounds+1);
+    box.appendChild(cw);}
   root.appendChild(box);
   dock([btn("cta","Starten",()=>{startGame();})]);
 }
@@ -1137,7 +1175,7 @@ function renderFinal(below){
   if(g.mode==="solo"&&g.newAch&&g.newAch.length){const na=$(`<section class="panel newach"><span class="cap">Neue Abzeichen in diesem Match</span></section>`);
     g.newAch.forEach(id=>{const a=ACH.find(x=>x.id===id);na.appendChild($(`<div class="row"><span class="badge on">${BADGE}</span><div><b style="font-weight:500">${esc(a.t)}</b><div class="fine" style="color:var(--muted)">${esc(a.d)}</div></div></div>`));});
     below.insertBefore(na,below.children[1]);}
-  dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",()=>{S.setup.mode=g.mode;S.setup.cat=g.cat;S.setup.rounds=g.rounds;S.setup.area=g.area||"world";startGame();})]);
+  dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",()=>{S.setup.mode=g.mode;S.setup.cat=g.cat;S.setup.rounds=g.rounds;S.setup.customRounds=![5,10,0].includes(g.rounds);S.setup.area=g.area||"world";startGame();})]);
 }
 load();
 {const v=S.view,g=S.game;
@@ -1147,7 +1185,7 @@ load();
   else if(!v&&g&&g.round&&!g.finished)phase="game";
   else phase="menu";}
 render();
-if(phase==="game"){poll();const r0=G().round;if(r0&&!r0.revealed&&!r0.traced)loadTrace(r0);}
+if(phase==="game")poll();
 </script>
 </body>
 </html>

@@ -15,7 +15,7 @@ Live-Quiz fürs iPhone: Ein echter Linienflug, der gerade in der Luft ist, wird 
 - `LICENSE`, `README.md`, `PROJEKT.md`
 
 ## Datenquellen (alle über die Weiterleitung)
-- Live-Positionen: adsb.lol (funktioniert). adsb.fi und airplanes.live sperren Cloudflare (HTTP 403).
+- Live-Positionen: nur adsb.lol über die Weiterleitung (adsb.fi, airplanes.live und direkte Abrufe sind gesperrt und wurden entfernt). Abrufe mit bis zu 3 Versuchen; bei Netzproblemen Meldung „Verbindung zu schwach“/„Keine Internetverbindung“ und automatische neue Suche.
 - Routen: adsbdb.com (Callsign → Abflug/Ziel)
 - Fotos: planespotters.net (Fotograf + Link müssen angezeigt werden)
 - Karte: Esri World Dark Gray / World Imagery (Satellit)
@@ -26,7 +26,7 @@ Live-Quiz fürs iPhone: Ein echter Linienflug, der gerade in der Luft ist, wird 
 - Startbildschirm: Kacheln Singleplayer / 1 vs 1, darunter Abzeichen und Spielregeln; Tipp auf Kachel öffnet „Spiel einrichten“ (Namen nur bei 1 vs 1, Flugzeuge, Gebiet, Runden, letzte Auswahl voreingestellt). Modi: Singleplayer oder Lokal 1 vs 1 (Standardnamen „Player 1“ / „Player 2“, änderbar)
 - Flugzeuge: Langstrecke (A330, A340, A350, A380, B747, B767, B777, B787), Kurz- & Mittelstrecke (A220, A319–A321, B737, B757), Alle Typen. Boeing wird in der Anzeige immer mit „B“ geschrieben (intern ohne, Funktion disp())
 - Gebiet: Weltweit oder „Über mir“ (Standort, nächster Flug im Umkreis 100 nm, dann 250 nm; zeigt Entfernung/Richtung)
-- Matchlänge: 5, 10 oder Endlos; Ergebnis-Bildschirm mit Statistik und „Revanche“
+- Matchlänge: 5, 10, Endlos oder eigene Zahl (1–99); Ergebnis-Bildschirm mit Statistik und „Revanche“
 - Tippen: erst Freitext, optional „3 Typen zeigen“ → Multiple Choice (nur echte Flottentypen der Airline, plausibel für die Streckenlänge)
 - Punkte: +2 Freitext, +1 Auswahl, +1 Bonus für exaktes Submodell (z. B. A350-1000, 77W)
 - 1 vs 1: Tipps verdeckt; Singleplayer: sofortige Auflösung
