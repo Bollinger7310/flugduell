@@ -399,7 +399,8 @@ body{background:radial-gradient(120% 60% at 50% -10%,color-mix(in srgb,var(--sig
 .vphoto img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .5s}
 .vphoto img.in{opacity:1}
 .vphoto .ph{position:absolute;inset:0;display:grid;place-items:center;font:600 72px var(--m);letter-spacing:-.05em;color:color-mix(in srgb,var(--ink) 7%,transparent)}
-.vphoto .ov{position:absolute;left:0;right:0;bottom:0;padding:44px 18px 14px;background:linear-gradient(transparent,rgba(5,8,12,.82));color:#fff}
+.vphoto .plink{position:absolute;inset:0;display:block}
+.vphoto .ov{pointer-events:none;position:absolute;left:0;right:0;bottom:0;padding:44px 18px 14px;background:linear-gradient(transparent,rgba(5,8,12,.82));color:#fff}
 .vphoto .ov .cap{color:rgba(255,255,255,.7)}
 .vphoto .ov .ty{font-weight:600;font-size:32px;letter-spacing:-.035em;line-height:1.05;margin-top:4px}
 .vphoto .ov .sub{font:400 12px var(--m);color:rgba(255,255,255,.75);margin-top:4px}
@@ -767,11 +768,15 @@ const photoCache={};
 async function loadPhoto(r){
   const key=r.hex;if(photoCache[key]===undefined){
     photoCache[key]=null;
-    try{
-      const urls=[`https://api.planespotters.net/pub/photos/hex/${r.hex}`];if(r.reg)urls.push(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(r.reg)}`);
-      for(const u of urls){const d=await getRetry(viaProxy(u),"Foto",2,9000);const p=d&&d.photos&&d.photos[0];
+    // Planespotters-Bedingungen: API direkt aus dem Browser abfragen (nicht über die Weiterleitung),
+    // Bilder vom Browser des Nutzers laden, Fotograf nennen und auf die Fotoseite verlinken.
+    const urls=[`https://api.planespotters.net/pub/photos/hex/${r.hex.replace(/^~/,"").toUpperCase()}`];
+    if(r.reg)urls.push(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(r.reg)}`);
+    for(const u of urls){
+      try{const d=await getRetry(u,"Foto",2,9000);const p=d&&d.photos&&d.photos[0];
         if(p){photoCache[key]={src:(p.thumbnail_large||p.thumbnail).src,link:p.link,by:p.photographer};break;}}
-    }catch(e){}
+      catch(e){note("Foto: "+errTxt(e));}
+    }
     if(!photoCache[key])photoCache[key]=false;
   }
   paintPhoto(key);
@@ -780,7 +785,7 @@ let vOverlay="",vCode="";
 function paintPhoto(key){
   const box=document.getElementById("photo");if(!box)return;const p=photoCache[key];
   if(!p){box.innerHTML=`<div class="ph">${esc(vCode)}</div>${vOverlay}`;return;}
-  box.innerHTML=`<img alt="Foto der Maschine" referrerpolicy="no-referrer"><div class="credit">© ${esc(p.by||"Fotograf")} · <a href="${esc(p.link)}" target="_blank" rel="noopener">Planespotters</a></div>${vOverlay}`;
+  box.innerHTML=`<a class="plink" href="${esc(p.link)}" target="_blank"><img alt="Foto der Maschine auf Planespotters.net"></a><div class="credit">Foto: ${esc(p.by||"Planespotters.net")} · <a href="${esc(p.link)}" target="_blank">Planespotters.net</a></div>${vOverlay}`;
   const img=box.querySelector("img");img.onload=()=>img.classList.add("in");img.src=p.src;
 }
 
@@ -939,7 +944,7 @@ function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
 let confirmDel=false;
-const APP_VERSION="1.15";
+const APP_VERSION="1.16";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");

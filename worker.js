@@ -1,5 +1,5 @@
 // Cloudflare Worker: reicht Live-Flugdaten mit CORS-Freigabe an die Flugduell-App weiter
-const ALLOW = ["api.adsb.lol", "opendata.adsb.fi", "api.airplanes.live", "api.adsbdb.com", "api.planespotters.net", "globe.adsb.lol"];
+const ALLOW = ["api.adsb.lol", "opendata.adsb.fi", "api.airplanes.live", "api.adsbdb.com", "globe.adsb.lol"];
 // Nur die eigene App darf die Weiterleitung nutzen
 const ORIGINS = ["https://bollinger7310.github.io"];
 const CORS = {
@@ -9,7 +9,7 @@ const CORS = {
 };
 // Wie lange eine Antwort zwischengespeichert wird (Sekunden)
 function ttlFor(url) {
-  if (url.hostname === "api.adsbdb.com" || url.hostname === "api.planespotters.net") return 3600;
+  if (url.hostname === "api.adsbdb.com") return 3600;
   if (/\/traces\//.test(url.pathname)) return 30;
   if (/\/hex\//.test(url.pathname)) return 4;
   return 20; // Gebietsabfragen

@@ -17,7 +17,7 @@ Live-Quiz fürs iPhone: Ein echter Linienflug, der gerade in der Luft ist, wird 
 ## Datenquellen (alle über die Weiterleitung)
 - Live-Positionen: nur adsb.lol über die Weiterleitung (adsb.fi, airplanes.live und direkte Abrufe sind gesperrt und wurden entfernt). Abrufe mit bis zu 3 Versuchen; bei Netzproblemen Meldung „Verbindung zu schwach“/„Keine Internetverbindung“ und automatische neue Suche.
 - Routen: adsbdb.com (Callsign → Abflug/Ziel)
-- Fotos: planespotters.net (Fotograf + Link müssen angezeigt werden)
+- Fotos: planespotters.net, laut deren Bedingungen DIREKT aus dem Browser abfragen (nicht über die Weiterleitung, sonst 403), Bild vom Browser laden, Fotograf nennen, Bild auf Fotoseite verlinken
 - Karte: Esri World Dark Gray / World Imagery (Satellit)
 - Bisheriger Flugverlauf (globe.adsb.lol): von Cloudflare aus gesperrt (403) → Spur wird ab Spielbeginn live aufgezeichnet
 - Nur private, nicht-kommerzielle Nutzung. Für kommerziell: lizenzierte Daten nötig (z. B. Flightradar24-API, Explorer 9 $/Monat).
