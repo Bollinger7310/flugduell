@@ -474,6 +474,10 @@ const REGIONS=[[50.1,8.6],[51.5,-0.4],[49.0,2.5],[52.3,4.8],[41.3,28.8],[40.5,-3
 [1.4,103.9],[22.3,113.9],[13.7,100.7],[35.6,139.8],[37.5,126.5],[31.2,121.5],[-33.9,151.2],[40.6,-73.8],[41.9,-87.9],[33.6,-84.4],[33.9,-118.4],
 [37.6,-122.4],[32.9,-97.0],[43.7,-79.6],[25.8,-80.3],[47.4,-122.3],[-23.4,-46.5],[19.4,-99.1],[-26.1,28.2],[60.3,24.9],[55.6,12.6]];
 const PIDS=["p1","p2"];
+// Gebiete mit viel Langstreckenverkehr: Drehkreuze und Nordatlantik-Korridor
+const LONG_REGIONS=[[25.2,55.3],[25.3,51.6],[24.4,54.6],[51.5,-0.4],[50.1,8.6],[49.0,2.5],[52.3,4.8],[41.3,28.8],[40.5,-3.6],
+[53,-20],[52,-35],[49,-45],[40.6,-73.8],[42.4,-71],[33.9,-118.4],[37.6,-122.4],[1.4,103.9],[22.3,113.9],[35.6,139.8],[37.5,126.5],
+[28.6,77.1],[13.7,100.7],[-33.9,151.2],[31.2,121.5],[40.1,116.6],[47.4,-122.3],[43.7,-79.6],[-23.4,-46.5],[9,38.8]];
 
 const disp=m=>m&&/^7\d7/.test(m)?"B"+m:m;
 function normalize(raw){
@@ -542,7 +546,7 @@ function isCandidate(ac,cat,minAlt=12000){
   if((ac.dbFlags||0)&1)return false;
   const c=parseCs(ac);if(!c||!AL[c.al])return false;
   if(!inCat(TYPE[ac.t],cat))return false;
-  if(cat!=="all"&&fleetIn(c.al,cat).length<3)return false;
+  if(cat!=="all"&&fleetIn(c.al,cat).length<2)return false;
   if(c.num>=9000)return false;
   if(["UAE","QTR","ETD","SIA","CPA","THY","KAL","AAR","CAL","EVA","CSN","CES","CCA","ETH","SVA","DLH","AFR","KLM","BAW"].includes(c.al)&&c.num>=8000)return false;
   return true;
@@ -572,10 +576,11 @@ async function findFlight(exclude,cat,me){
   const recent=(G()&&G().history||[]).slice(-6);
   netDown=false;
   // Weltweit: zufällige Regionen. Über mir: erst 100 nm, dann 250 nm um den eigenen Standort, nächste Flüge zuerst
-  const regions=me?[[me.lat,me.lon,100],[me.lat,me.lon,250]]:[...REGIONS].sort(()=>Math.random()-.5).slice(0,4).map(([a,b])=>[a,b,180]);
+  const pool=cat==="long"?LONG_REGIONS:REGIONS;
+  const regions=me?[[me.lat,me.lon,100],[me.lat,me.lon,250]]:[...pool].sort(()=>Math.random()-.5).slice(0,6).map(([a,b])=>[a,b,250]);
   for(let i=0;i<regions.length;i++){
     if(searchCtl&&searchCtl.cancelled)return null;
-    if(i)await new Promise(r=>setTimeout(r,1500));
+    if(i)await new Promise(r=>setTimeout(r,800));
     setStatus(me?(i===0?"Radar sucht über dir …":"Erweitere den Suchradius …"):(i===0?"Radar läuft …":"Suche in einer anderen Region …"));
     const [la,lo,rad]=regions[i];
     let data;try{data=await adsbArea(la,lo,rad);}catch(e){note("Gebiet "+(i+1)+": keine Daten");
@@ -662,6 +667,8 @@ async function newRound(){
   if(!navigator.onLine){netDown=true;phase="error";render();return;}
   let f=null;try{f=await findFlight(recent,G().cat,me);}catch(e){note("Fehler: "+e.message);}
   if(searchCtl.cancelled)return;
+  // Nichts Passendes, aber Netz in Ordnung: einmal in anderen Gebieten weitersuchen, bevor eine Meldung kommt
+  if(!f&&!netDown&&!me&&!errMsg){setStatus("Suche in weiteren Regionen …");try{f=await findFlight(recent,G().cat,me);}catch(e){}if(searchCtl.cancelled)return;}
   if(!f&&netFails>0&&!errMsg)netDown=true;
   if(!f&&netDown){phase="error";render();
     // bis zu 3 automatische neue Versuche mit Pause
@@ -932,7 +939,7 @@ function setStatus(t){set("status",t);}
 
 // Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
 let confirmDel=false;
-const APP_VERSION="1.14";
+const APP_VERSION="1.15";
 let lastView="";
 function render(){
   const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
