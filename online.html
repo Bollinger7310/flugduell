@@ -1,0 +1,1465 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flugduell Online">
+<meta name="theme-color" content="#F3F4F6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#080B0F" media="(prefers-color-scheme: dark)">
+<title>Flugduell Online</title>
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-512.png">
+<link rel="manifest" href="manifest-online.json">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: ruhiger Instrumenten-Look – Haarlinien statt Schatten, eine Signalfarbe (Bernstein), Zahlen in Mono.
+   Menü als gruppierte Einstellungsliste, Spiel als Stapel aus Karte, Flugdaten und Tippfeldern, Hauptaktion unten fixiert. */
+:root{
+  --bg:#F3F4F6; --surface:#FFFFFF; --raised:#F0F2F5; --line:rgba(12,18,28,.09); --line-strong:rgba(12,18,28,.16);
+  --ink:#0B1018; --ink-2:#2A323E; --muted:#667080; --faint:#9AA2AE;
+  --signal:#B9781A; --signal-soft:rgba(185,120,26,.10);
+  --p1:#B9781A; --p2:#2C6FBF; --p1-soft:rgba(185,120,26,.10); --p2-soft:rgba(44,111,191,.10);
+  --ok:#1E8A55; --bad:#C8423D; --ok-soft:rgba(30,138,85,.09); --bad-soft:rgba(200,66,61,.08);
+  --cta:#0B1018; --cta-ink:#FFFFFF;
+  --f:"Geist",-apple-system,system-ui,sans-serif; --m:"Geist Mono",ui-monospace,Menlo,monospace;
+  --r:18px; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#080B0F; --surface:#0F141A; --raised:#151B23; --line:rgba(255,255,255,.07); --line-strong:rgba(255,255,255,.13);
+  --ink:#ECEFF3; --ink-2:#C4CAD3; --muted:#8B94A1; --faint:#5E6774;
+  --signal:#F0B44C; --signal-soft:rgba(240,180,76,.10);
+  --p1:#F0B44C; --p2:#7DB2F0; --p1-soft:rgba(240,180,76,.10); --p2-soft:rgba(125,178,240,.11);
+  --ok:#4CC88A; --bad:#F07670; --ok-soft:rgba(76,200,138,.09); --bad-soft:rgba(240,118,112,.09);
+  --cta:#ECEFF3; --cta-ink:#080B0F; color-scheme:dark}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--f);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;letter-spacing:-.005em;
+  padding-top:max(14px,env(safe-area-inset-top,0px));padding-bottom:calc(104px + env(safe-area-inset-bottom,0px));
+  padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px))}
+.wrap{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.cap{font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--m);font-variant-numeric:tabular-nums}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+
+/* ---------- Menü ---------- */
+.brand{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 2px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:.14em;text-transform:uppercase}
+.logo svg{color:var(--signal)}
+.status{font:500 11px var(--m);color:var(--muted);display:flex;align-items:center;gap:7px}
+.status i{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+.intro{padding:26px 2px 10px;position:relative}
+.intro h1{margin:0;font-weight:600;font-size:42px;line-height:1.02;letter-spacing:-.035em;max-width:11ch;text-wrap:balance}
+.intro h1 em{font-style:normal;color:var(--signal)}
+.intro p{margin:14px 0 0;color:var(--muted);max-width:36ch}
+.group{display:flex;flex-direction:column;gap:8px}
+.group>.cap{padding:0 4px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--raised);border-radius:14px;border:1px solid var(--line)}
+.seg button{padding:12px 8px;border-radius:10px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+.seg button small{font-size:11px;color:var(--faint);font-weight:400}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line)}
+.list{overflow:hidden}
+.opt-row{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:15px 16px;text-align:left}
+.opt-row+.opt-row{border-top:1px solid var(--line)}
+.opt-row .ic{width:36px;height:36px;border-radius:10px;background:var(--raised);display:grid;place-items:center;color:var(--ink-2)}
+.opt-row .t{font-weight:500}
+.opt-row .d{font-size:12.5px;color:var(--muted);margin-top:1px}
+.radio{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line-strong);display:grid;place-items:center}
+.opt-row[aria-checked="true"] .radio{border-color:var(--signal)}
+.opt-row[aria-checked="true"] .radio:after{content:"";width:10px;height:10px;border-radius:50%;background:var(--signal)}
+.opt-row[aria-checked="true"] .ic{background:var(--signal-soft);color:var(--signal)}
+.name-row{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:14px;padding:4px 16px}
+.name-row+.name-row{border-top:1px solid var(--line)}
+.name-row i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.name-row input{border:0;background:none;color:var(--ink);font:500 16px var(--f);padding:13px 0;outline:none;width:100%;min-width:0}
+.name-row input::placeholder{color:var(--faint)}
+.resume{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:14px 16px;width:100%;text-align:left}
+.resume b{font-weight:500}
+.resume .s{font-size:12.5px;color:var(--muted)}
+.resume .go{font:500 13px var(--f);color:var(--signal)}
+
+/* ---------- Spielkopf ---------- */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px}
+.back{display:flex;align-items:center;gap:6px;color:var(--muted);font-weight:500;padding:8px 4px}
+.tag{font:500 11px var(--m);color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 10px;white-space:nowrap}
+.board{display:grid;grid-template-columns:1fr auto 1fr}
+.board.solo{grid-template-columns:1fr 1fr 1fr}
+.cell{padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.cell+.cell{border-left:1px solid var(--line)}
+.cell .nm{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:7px;min-width:0}
+.cell .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cell .nm i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
+.cell .v{font:500 28px var(--m);letter-spacing:-.03em;line-height:1.1}
+.cell.mid{align-items:center;justify-content:center;padding:14px 18px}
+.cell.mid .v{font-size:17px;color:var(--ink-2)}
+.cell.r{align-items:flex-end;text-align:right}
+
+/* ---------- Karte ---------- */
+.mapwrap{position:relative;overflow:hidden;border-radius:var(--r);border:1px solid var(--line)}
+#map{height:min(40vh,320px);width:100%;background:#1c2026}
+.chip{position:absolute;z-index:500;background:rgba(12,16,22,.72);color:#E9EDF2;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:6px 11px;font:500 11.5px var(--m);display:flex;align-items:center;gap:7px}
+.chip.live{top:10px;left:10px}
+.chip.ctr{top:10px;right:10px}
+.chip.sty{bottom:22px;right:10px}
+.dot{width:6px;height:6px;border-radius:50%;background:#4CC88A;animation:pulse 2.2s infinite}
+.stale .dot{background:#F07670;animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(76,200,138,.55)}70%{box-shadow:0 0 0 7px rgba(76,200,138,0)}100%{box-shadow:0 0 0 0 rgba(76,200,138,0)}}
+.ap-ic{width:11px;height:11px;border-radius:50%;background:#0d1520;border:2.5px solid #E6EDF5;box-shadow:0 0 0 4px rgba(230,237,245,.10)}
+.ap-ic.dest{position:relative;border-color:#F0B44C;box-shadow:0 0 0 4px rgba(240,180,76,.14)}
+.ap-ic.dest:after{content:"";position:absolute;inset:-9px;border-radius:50%;border:1.5px solid rgba(240,180,76,.7);animation:ping 2.4s cubic-bezier(0,0,.2,1) infinite}
+@keyframes ping{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.9);opacity:0}}
+.plane-wrap{position:relative;width:44px;height:44px;display:grid;place-items:center}
+.plane-wrap:before{content:"";position:absolute;inset:2px;border-radius:50%;background:radial-gradient(circle,rgba(245,184,61,.38),rgba(245,184,61,0) 68%)}
+.plane-wrap svg{position:relative;filter:drop-shadow(0 2px 4px rgba(0,0,0,.55))}
+.mapwrap.chart .leaflet-tile-pane{filter:sepia(.6) hue-rotate(180deg) saturate(1.7) brightness(1.05) contrast(1.2)}
+.mapwrap.sat .leaflet-tile-pane{filter:brightness(.82) contrast(1.08) saturate(.9)}
+#map.leaflet-container:after{content:"";position:absolute;inset:0;z-index:300;pointer-events:none;background:radial-gradient(120% 90% at 50% 45%,transparent 55%,rgba(3,8,16,.55))}
+.hud{position:absolute;z-index:500;left:10px;bottom:22px;display:flex;gap:1px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.08)}
+.hud span{background:rgba(9,14,22,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:5px 9px;display:flex;flex-direction:column;gap:1px;min-width:52px}
+.hud small{font:500 8.5px var(--m);letter-spacing:.12em;color:rgba(233,237,242,.55)}
+.hud b{font:600 12px var(--m);color:#F3F5F8}
+.leaflet-tooltip.apt{background:rgba(9,14,22,.82);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1)!important}
+.leaflet-tooltip.apt b{color:#F0B44C;font-weight:600}
+.leaflet-tooltip.apt{background:rgba(12,16,22,.85);color:#fff;border:0;border-radius:6px;font:500 10.5px var(--m);padding:3px 6px;box-shadow:none}
+.leaflet-tooltip.apt:before{display:none}
+.leaflet-control-attribution{font-size:9px!important;background:rgba(12,16,22,.55)!important;color:#aaa!important}
+.leaflet-control-attribution a{color:#ccc!important}
+
+/* ---------- Flug ---------- */
+.flight{padding:18px 18px 16px;display:flex;flex-direction:column;gap:16px}
+.fh{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.fh h2{margin:0;font-weight:600;font-size:21px;letter-spacing:-.02em}
+.fh .cs{font:500 12.5px var(--m);color:var(--muted)}
+.route{display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:12px}
+.ap{display:flex;flex-direction:column;min-width:0}
+.ap.to{text-align:right;align-items:flex-end}
+.ap .code{font:500 34px var(--m);letter-spacing:-.04em;line-height:1}
+.ap .city{font-weight:500;margin-top:8px;overflow-wrap:anywhere}
+.ap .an{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.ap .tm{font:400 12px var(--m);color:var(--ink-2);margin-top:6px}
+.track{position:relative;height:34px;min-width:64px;align-self:center}
+.track:before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px dashed var(--line-strong)}
+.track .done{position:absolute;left:0;top:50%;border-top:1.5px solid var(--signal);width:0}
+.track svg{position:absolute;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;color:var(--signal);left:0}
+.data{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);margin:0 -18px -16px}
+.data div{padding:12px 10px 14px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.data div:first-child{padding-left:18px}
+.data div+div{border-left:1px solid var(--line)}
+.data .v{font:500 14px var(--m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:460px){.data{grid-template-columns:repeat(2,1fr)}.data div:nth-child(3){border-left:0;padding-left:18px}.data div:nth-child(n+3){border-top:1px solid var(--line)}}
+.fine{font-size:11.5px;color:var(--faint)}
+.rel{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--signal-soft);color:var(--ink);font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:8px}
+.rel:before{content:"";width:8px;height:8px;border-radius:50%;background:#4C9BF0;box-shadow:0 0 0 3px rgba(76,155,240,.25);flex:none}
+.me-ic{width:14px;height:14px;border-radius:50%;background:#4C9BF0;border:2.5px solid #fff;box-shadow:0 0 0 6px rgba(76,155,240,.25)}
+.fine a{color:var(--signal);text-decoration:none}
+
+/* ---------- Tipps ---------- */
+.hint{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;width:100%;text-align:left}
+.hint b{font-weight:500}
+.hint span{font-size:12.5px;color:var(--muted)}
+.hint .k{font:500 12px var(--m);color:var(--signal);white-space:nowrap}
+.hint:disabled .k{color:var(--faint)}
+.guesses{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.guesses.solo{grid-template-columns:1fr}
+.gc{padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.gc .who{display:flex;align-items:center;gap:8px;font-weight:500;min-width:0}
+.gc .who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc .who i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
+.gc input{width:100%;font:500 17px var(--m);padding:12px;border-radius:12px;border:1px solid var(--line-strong);background:var(--raised);color:var(--ink);text-transform:uppercase;outline:none}
+.gc.duo input{-webkit-text-security:disc}
+.gc input:focus{border-color:var(--c)}
+.gc .lbl{font-size:12px;color:var(--muted)}
+.lock{padding:12px;border-radius:12px;background:var(--c);color:var(--cta-ink);font-weight:600}
+.choice{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line-strong);background:var(--raised);font:500 15px var(--m)}
+.choice:active{border-color:var(--c)}
+.sealed{border-radius:12px;padding:16px 10px;text-align:center;background:var(--cs);font-size:13px;color:var(--ink-2)}
+.sealed svg{display:block;margin:0 auto 6px;color:var(--c)}
+.undo{font-size:12px;color:var(--muted);align-self:center;text-decoration:underline;text-underline-offset:3px}
+.err{font-size:12px;color:var(--bad)}
+
+/* ---------- Auflösung ---------- */
+.verdict{padding:22px 18px 18px;display:flex;flex-direction:column;gap:16px}
+.verdict .ty{font-weight:600;font-size:34px;letter-spacing:-.035em;line-height:1}
+.verdict .sub{font:400 12.5px var(--m);color:var(--muted);margin-top:6px}
+.res{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.res.solo{grid-template-columns:1fr}
+.res div{border-radius:12px;padding:11px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+.res .ok{background:var(--ok-soft)}
+.res .bad{background:var(--bad-soft)}
+.res span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.res small{display:block;font:400 12px var(--m);color:var(--muted)}
+.res em{font:600 13px var(--m);font-style:normal;white-space:nowrap}
+.res .ok em{color:var(--ok)}
+.res .bad em{color:var(--bad)}
+
+/* ---------- Laden / Fehler ---------- */
+.wait{padding:40px 20px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+.scope{width:84px;height:84px;border-radius:50%;position:relative;border:1px solid var(--line-strong);
+  background:repeating-radial-gradient(circle,transparent 0 13px,var(--line) 13px 14px)}
+.scope:after{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,var(--signal-soft),transparent 28%);animation:spin 2s linear infinite}
+.scope:before{content:"";position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:var(--signal)}
+@keyframes spin{to{transform:rotate(1turn)}}
+.wait b{font-weight:500}
+.wait span{font-size:13px;color:var(--muted)}
+.problem{padding:18px;display:flex;flex-direction:column;gap:10px}
+.problem b{font-weight:600;color:var(--bad)}
+.problem span{font-size:13px;color:var(--muted)}
+.diag{font:11px/1.6 var(--m);color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--raised);border-radius:10px;padding:10px;max-height:200px;overflow:auto}
+
+/* ---------- Aktionsleiste ---------- */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:1000;
+  padding:14px max(18px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));
+  background:linear-gradient(180deg,transparent,var(--bg) 40%)}
+.dock .in{max-width:520px;margin:0 auto;display:flex;gap:10px}
+.cta{flex:1;padding:17px;border-radius:16px;background:var(--cta);color:var(--cta-ink);font-weight:600;font-size:16px;letter-spacing:-.01em}
+.cta:disabled{opacity:.35}
+.sec{padding:17px 18px;border-radius:16px;background:var(--surface);border:1px solid var(--line);font-weight:500;color:var(--ink-2)}
+.seg.three{grid-template-columns:repeat(3,1fr)}
+.rules{padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:13px;color:var(--muted)}
+.rules b{font:600 13px var(--m);color:var(--signal);text-align:right}
+.photo{margin:0 -18px;position:relative;background:var(--raised);aspect-ratio:3/2;overflow:hidden}
+.photo img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .4s}
+.photo img.in{opacity:1}
+.photo .credit{position:absolute;left:0;right:0;bottom:0;padding:18px 12px 8px;font-size:10.5px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.6))}
+.photo .credit a{color:#fff;text-decoration:none}
+.photo .none{position:absolute;inset:0;display:grid;place-items:center;font-size:12.5px;color:var(--faint)}
+.final{padding:24px 18px 8px;display:flex;flex-direction:column;gap:6px}
+.final h1{margin:6px 0 0;font-weight:600;font-size:36px;letter-spacing:-.035em;line-height:1.05;text-wrap:balance}
+.final p{margin:4px 0 0;color:var(--muted)}
+.stats{display:grid;grid-template-columns:1fr repeat(var(--n),auto);font-size:13.5px}
+.stats>*{padding:11px 16px;border-top:1px solid var(--line)}
+.stats .h{border-top:0;font-size:12px;color:var(--muted)}
+.stats .n{font:500 14px var(--m);text-align:right}
+.stats .tot{font-weight:600;font-size:16px}
+.rounds{display:flex;flex-direction:column}
+.rd{display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;padding:11px 16px;font-size:13.5px}
+.rd+.rd{border-top:1px solid var(--line)}
+.rd .i{font:500 12px var(--m);color:var(--faint)}
+.rd .rt{font:400 12px var(--m);color:var(--muted)}
+.rd .pp{display:flex;gap:6px}
+.rd .pp span{font:600 11.5px var(--m);padding:3px 7px;border-radius:6px}
+.rd .pp .y{background:var(--ok-soft);color:var(--ok)}
+.rd .pp .n{background:var(--raised);color:var(--faint)}
+/* Abzeichen */
+.badge{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none;background:var(--raised);color:var(--faint);border:1px solid var(--line)}
+.badge.on{background:var(--signal-soft);color:var(--signal);border-color:color-mix(in srgb,var(--signal) 35%,transparent)}
+.achhead{padding:20px 18px;display:flex;flex-direction:column;gap:12px}
+.achhead h1{margin:0;font-weight:600;font-size:30px;letter-spacing:-.03em}
+.meter{height:4px;border-radius:99px;background:var(--raised);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--signal);border-radius:99px}
+.ach{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:13px 16px}
+.ach+.ach{border-top:1px solid var(--line)}
+.ach .t{font-weight:500}
+.ach.off .t{color:var(--ink-2)}
+.ach .d{font-size:12.5px;color:var(--muted);margin-top:1px}
+.ach .x{font:500 11.5px var(--m);color:var(--faint);white-space:nowrap;text-align:right}
+.ach.on .x{color:var(--signal)}
+.toast{position:fixed;z-index:2000;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translate(-50%,calc(-100% - 120px));opacity:0;visibility:hidden;pointer-events:none;
+  transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .3s,visibility 0s linear .45s;
+  width:min(420px,calc(100% - 32px));display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;padding:12px 14px;
+  background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.toast.in{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .3s,visibility 0s}
+.toast .cap{color:var(--signal)}
+.toast b{display:block;font-weight:600;margin-top:1px}
+.newach{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.newach .row{display:flex;gap:12px;align-items:center}
+/* Startbildschirm */
+.hero2{padding:22px 2px 4px}
+.hero2 h1{margin:0;font-weight:600;font-size:34px;line-height:1.05;letter-spacing:-.035em;max-width:13ch;text-wrap:balance}
+.hero2 h1 em{font-style:normal;color:var(--signal)}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:18px 16px 16px;text-align:left;min-height:150px}
+.tile:active{border-color:var(--signal)}
+.tic{width:42px;height:42px;border-radius:12px;background:var(--signal-soft);color:var(--signal);display:grid;place-items:center;margin-bottom:auto}
+.tt{font-weight:600;font-size:18px;letter-spacing:-.02em;margin-top:18px}
+.td{font-size:12.5px;color:var(--muted);line-height:1.35;height:4.05em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.lastset{font:400 11.5px var(--m);color:var(--faint);text-align:center;padding:2px 0}
+.foot{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.flink{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:14px;color:var(--ink-2);font-weight:500;font-size:14px;border:1px solid var(--line)}
+.flink .num{font:500 12px var(--m);color:var(--muted)}
+.badge.sm{width:24px;height:24px;border-radius:7px}
+.badge.sm svg{width:15px;height:15px}
+.setbox{padding:6px 16px 14px;display:flex;flex-direction:column}
+.srow{display:flex;flex-direction:column;gap:8px;padding-top:14px}
+.seg.mini button{padding:10px 6px;font-size:14px}
+.custom{display:flex;align-items:center;gap:8px;padding-top:10px}
+.custom input{width:84px;text-align:center;font:600 20px var(--m);padding:10px 6px;border-radius:12px;border:1px solid var(--line-strong);background:var(--raised);color:var(--ink);outline:none;-moz-appearance:textfield}
+.custom input::-webkit-outer-spin-button,.custom input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.custom input:focus{border-color:var(--signal)}
+.custom .stp{width:44px;height:44px;border-radius:12px;background:var(--raised);border:1px solid var(--line);font:500 22px var(--f);color:var(--ink-2)}
+.custom span{font-size:13px;color:var(--muted);margin-left:4px}
+.hintline{font-size:12px;color:var(--muted);padding:8px 2px 0}
+.rcard{display:grid;grid-template-columns:1fr auto;align-items:stretch;overflow:hidden}
+.rmain{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:14px 4px 14px 16px;text-align:left;min-width:0}
+.rmain b{font-weight:500}
+.rmain .s{font-size:12.5px;color:var(--muted)}
+.rmain .go{font:500 13px var(--f);color:var(--signal);white-space:nowrap}
+.rx{width:48px;display:grid;place-items:center;color:var(--faint);border-left:1px solid var(--line)}
+.rx:active{color:var(--bad)}
+.rcard.ask{grid-template-columns:1fr;padding:14px 16px;gap:12px}
+.rq b{font-weight:600}
+.rq .s{font-size:12.5px;color:var(--muted);margin-top:2px}
+.rbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rb{padding:11px;border-radius:12px;font-weight:600;background:var(--raised);border:1px solid var(--line)}
+.rb.del{background:var(--bad-soft);color:var(--bad);border-color:color-mix(in srgb,var(--bad) 30%,transparent)}
+.det summary{font-size:12px;color:var(--muted);cursor:pointer;margin-top:4px}
+.det .diag{margin-top:8px}
+.steps{padding:4px 0}
+.step{display:grid;grid-template-columns:auto 1fr;gap:14px;padding:14px 18px}
+.step+.step{border-top:1px solid var(--line)}
+.step .sn{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:600 13px var(--m);color:var(--signal);background:var(--signal-soft);border:1px solid color-mix(in srgb,var(--signal) 30%,transparent)}
+.step b{font-weight:600}
+.step p{margin:3px 0 0;color:var(--muted);font-size:13.5px;line-height:1.45}
+.rules{grid-template-columns:auto 1fr}
+.rtext{padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.rtext p{margin:0;color:var(--ink-2);font-size:14.5px}
+/* ===== Design-Feinschliff ===== */
+body{background:radial-gradient(120% 60% at 50% -10%,color-mix(in srgb,var(--signal) 7%,transparent),transparent 60%),var(--bg);background-attachment:fixed}
+.panel{box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 1px 2px rgba(0,0,0,.04)}
+/* Startbildschirm */
+.hero2{position:relative;padding:30px 2px 10px}
+.hero2 h1{position:relative;z-index:1}
+.radar-bg{position:absolute;right:-56px;top:-34px;width:220px;height:220px;opacity:.55;pointer-events:none;z-index:0}
+.radar-bg .sw{transform-origin:115px 115px;animation:spin 6s linear infinite}
+.hero2 .sub{position:relative;z-index:1;margin:12px 0 0;color:var(--muted);font-size:14.5px;max-width:30ch}
+.tile{position:relative;overflow:hidden;min-height:168px;background:linear-gradient(160deg,var(--surface),color-mix(in srgb,var(--surface) 70%,var(--raised)))}
+.tile:after{content:"";position:absolute;right:14px;top:18px;width:8px;height:8px;border-right:1.6px solid var(--faint);border-top:1.6px solid var(--faint);transform:rotate(45deg)}
+.tile:active{transform:scale(.985)}
+.tile{transition:transform .12s}
+/* Spielkopf */
+.gtop{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px}
+.gtop .ttl{text-align:center;font:500 12px var(--m);color:var(--muted);letter-spacing:.04em}
+.gtop .tag{justify-self:end}
+.sb{padding:16px 18px 14px;display:flex;flex-direction:column;gap:14px}
+.sb-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}
+.sb-p{display:flex;align-items:center;gap:10px;min-width:0}
+.sb-p.r{flex-direction:row-reverse;text-align:right}
+.av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:14px;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent);flex:none}
+.sb-p .nm{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-p .sc{font:600 30px var(--m);letter-spacing:-.04em;line-height:1}
+.sb-p .col{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sb-p.r .col{align-items:flex-end}
+.sb-vs{font:500 11px var(--m);color:var(--faint);letter-spacing:.1em}
+.sb-meta{display:flex;justify-content:space-between;font:400 11.5px var(--m);color:var(--muted)}
+.prog{display:flex;gap:4px}
+.prog i{flex:1;height:4px;border-radius:99px;background:var(--raised)}
+.prog i.d{background:var(--line-strong)}
+.prog i.y{background:var(--ok)}
+.prog i.n{background:var(--bad);opacity:.7}
+.prog i.c{background:var(--signal)}
+/* Karte */
+#map{height:min(44vh,360px)}
+.mapwrap{border-radius:22px}
+/* Bordkarte */
+.flight{padding:0;gap:0;overflow:hidden}
+.fp-top{display:flex;align-items:center;gap:12px;padding:16px 18px}
+.alb{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font:600 12px var(--m);letter-spacing:.02em;color:var(--signal);background:var(--signal-soft);border:1px solid color-mix(in srgb,var(--signal) 30%,transparent);flex:none}
+.fp-top .an2{flex:1;min-width:0}
+.fp-top h2{margin:0;font-weight:600;font-size:19px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fp-top .cs2{font:400 12px var(--m);color:var(--muted)}
+.fp-route{display:grid;grid-template-columns:1fr minmax(70px,auto) 1fr;gap:10px;align-items:start;padding:4px 18px 18px}
+.fp-ap{display:flex;flex-direction:column;min-width:0}
+.fp-ap.to{text-align:right;align-items:flex-end}
+.fp-ap .code{font:600 40px var(--m);letter-spacing:-.05em;line-height:1}
+.fp-ap .city{font-weight:500;font-size:14.5px;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.fp-ap .an{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.fp-ap .tm{font:500 13px var(--m);color:var(--ink);margin-top:10px}
+.fp-ap .tl{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-top:8px}
+.fp-mid{display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:14px}
+.fp-mid .track{width:100%;min-width:70px;height:20px}
+.fp-mid .km{font:400 11px var(--m);color:var(--muted);white-space:nowrap}
+.perf{position:relative;height:0;border-top:1px dashed var(--line-strong);margin:0 14px}
+.perf:before,.perf:after{content:"";position:absolute;top:-10px;width:20px;height:20px;border-radius:50%;background:var(--bg);border:1px solid var(--line)}
+.perf:before{left:-25px}.perf:after{right:-25px}
+.flight .data{margin:0;border-top:0}
+.flight .data div:first-child{padding-left:18px}
+.flight .rel{margin:0 18px 16px}
+.flight #tracenote{margin:0 18px 14px!important}
+/* Tipps */
+.ghead{display:flex;align-items:center;justify-content:space-between;padding:6px 4px 0}
+.ghead .cap{font-size:11px}
+.pill{font:500 12.5px var(--f);color:var(--signal);padding:7px 12px;border-radius:999px;background:var(--signal-soft);border:1px solid color-mix(in srgb,var(--signal) 30%,transparent)}
+.pill:disabled{color:var(--faint);background:var(--raised);border-color:var(--line)}
+.gc{padding:16px}
+.gc .who{font-size:15px}
+.gc input{font-size:20px;padding:14px;text-align:center;letter-spacing:.04em}
+.gc input::placeholder{font:500 15px var(--f);letter-spacing:0;color:var(--faint);-webkit-text-security:none}
+.lock,.choice{min-height:46px}
+/* Auflösung */
+.verdict{padding:0 0 18px;gap:0;overflow:hidden}
+.vphoto{position:relative;aspect-ratio:16/10;background:var(--raised);overflow:hidden}
+.vphoto img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .5s}
+.vphoto img.in{opacity:1}
+.vphoto .ph{position:absolute;inset:0;display:grid;place-items:center;font:600 72px var(--m);letter-spacing:-.05em;color:color-mix(in srgb,var(--ink) 7%,transparent)}
+.vphoto .plink{position:absolute;inset:0;display:block}
+.vphoto .ov{pointer-events:none;position:absolute;left:0;right:0;bottom:0;padding:44px 18px 14px;background:linear-gradient(transparent,rgba(5,8,12,.82));color:#fff}
+.vphoto .ov .cap{color:rgba(255,255,255,.7)}
+.vphoto .ov .ty{font-weight:600;font-size:32px;letter-spacing:-.035em;line-height:1.05;margin-top:4px}
+.vphoto .ov .sub{font:400 12px var(--m);color:rgba(255,255,255,.75);margin-top:4px}
+.vphoto .credit{position:absolute;right:10px;top:10px;font-size:10px;color:#fff;background:rgba(0,0,0,.45);padding:3px 7px;border-radius:6px}
+.vphoto .credit a{color:#fff;text-decoration:none}
+.verdict .res{padding:16px 18px 0}
+.verdict .fine{padding:12px 18px 0}
+/* Leiste unten */
+.dock{background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--bg) 92%,transparent) 30%);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.cta{box-shadow:0 6px 20px rgba(0,0,0,.18)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* ===== Online-Duell ===== */
+.bigcode{font:600 64px var(--m);letter-spacing:.12em;line-height:1;margin-top:10px;color:var(--signal);position:relative;z-index:1}
+.obtn{width:100%;padding:14px;border-radius:14px;background:var(--cta);color:var(--cta-ink);font-weight:600;margin-top:14px}
+.obtn.sec2{background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);margin-top:0}
+.ojoin{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px}
+.ojoin input{font:600 24px var(--m);letter-spacing:.3em;text-align:center;text-transform:uppercase;padding:10px;border-radius:12px;border:1px solid var(--line-strong);background:var(--raised);color:var(--ink);outline:none;min-width:0}
+.ojoin input:focus{border-color:var(--signal)}
+.ojoin .obtn{margin:0;width:auto;padding:0 20px}
+.prow{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 16px}
+.prow+.prow{border-top:1px solid var(--line)}
+.prow b{font-weight:500}
+.prow .s{font-size:12.5px;color:var(--muted)}
+.you{font:500 10.5px var(--m);color:var(--signal);background:var(--signal-soft);padding:2px 6px;border-radius:6px;margin-left:4px;vertical-align:1px}
+.odot{width:9px;height:9px;border-radius:50%;background:var(--line-strong)}
+.odot.on{background:var(--ok);box-shadow:0 0 0 4px var(--ok-soft)}
+.waiting{border-radius:12px;padding:16px 10px;text-align:center;background:var(--raised);font-size:13px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:6px}
+.waiting b{font-weight:500}
+.wd{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c,var(--signal));margin:0 2px;animation:wdot 1.2s infinite}
+.waiting .wd{display:none}
+.waiting:before{content:"• • •";letter-spacing:.2em;color:var(--c);animation:wfade 1.4s infinite}
+@keyframes wfade{50%{opacity:.3}}
+@keyframes wdot{50%{opacity:.25}}
+.obanner{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:var(--signal-soft);color:var(--ink-2);font-size:13px;border:1px solid color-mix(in srgb,var(--signal) 25%,transparent)}
+.obanner.off{background:var(--raised);border-color:var(--line);color:var(--muted)}
+.shake{animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+</style>
+</head>
+<body>
+<div class="wrap" id="root"></div>
+<div class="wrap" id="mapslot" hidden style="margin-top:14px">
+  <div class="mapwrap">
+    <div id="map"></div>
+    <div class="chip live" id="live"><span class="dot"></span><span id="livetxt">Live</span></div>
+    <button class="chip ctr" id="center">Zentrieren</button>
+    <button class="chip sty" id="styleBtn">Satellit</button>
+    <div class="hud" id="hud" hidden><span><small>FL</small><b id="h-fl">–</b></span><span><small>KURS</small><b id="h-hd">–</b></span><span><small>V/S</small><b id="h-vs">–</b></span></div>
+  </div>
+</div>
+<div class="wrap" id="below" style="margin-top:14px"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="dock" id="dock" hidden><div class="in" id="dockIn"></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ===================== Stammdaten =====================
+const AL={
+DLH:["Lufthansa","A319 A320 A321 A330 A340 A350 A380 747 787"],CFG:["Condor","A320 A321 A330"],
+SWR:["Swiss","A220 A320 A321 A330 A340 A350 777"],AUA:["Austrian Airlines","A320 A321 767 777 787"],
+EWG:["Eurowings","A319 A320 A321"],BAW:["British Airways","A319 A320 A321 A350 A380 777 787"],
+AFR:["Air France","A220 A320 A321 A330 A350 777 787"],KLM:["KLM","A321 A330 737 777 787"],
+VIR:["Virgin Atlantic","A330 A350 787"],IBE:["Iberia","A320 A321 A330 A350"],
+VLG:["Vueling","A319 A320 A321"],EZY:["easyJet","A319 A320 A321"],EJU:["easyJet Europe","A319 A320 A321"],
+EZS:["easyJet Switzerland","A319 A320 A321"],EXS:["Jet2","737 757 A321"],ITY:["ITA Airways","A220 A320 A321 A330 A350"],
+SAS:["SAS","A319 A320 A321 A330 A350"],TAP:["TAP Air Portugal","A320 A321 A330"],FIN:["Finnair","A319 A320 A321 A330 A350"],
+ICE:["Icelandair","737 757 767 A321"],BEL:["Brussels Airlines","A319 A320 A321 A330"],THY:["Turkish Airlines","A320 A321 A330 A350 737 777 787"],
+UAE:["Emirates","A350 A380 777"],QTR:["Qatar Airways","A320 A350 A380 737 777 787"],ETD:["Etihad Airways","A320 A321 A350 A380 777 787"],
+OMA:["Oman Air","A330 737 787"],GFA:["Gulf Air","A320 A321 787"],KAC:["Kuwait Airways","A320 A330 777"],
+SVA:["Saudia","A320 A321 A330 777 787"],ELY:["El Al","737 777 787"],MSR:["EgyptAir","A220 A320 A321 A330 737 777 787"],
+ETH:["Ethiopian Airlines","A350 737 777 787"],SAA:["South African Airways","A320 A330 A340 A350"],
+SIA:["Singapore Airlines","A350 A380 737 777 787"],CPA:["Cathay Pacific","A320 A321 A330 A350 777"],
+THA:["Thai Airways","A320 A321 A350 777 787"],MAS:["Malaysia Airlines","A330 A350 737"],GIA:["Garuda Indonesia","A330 737 777"],
+PAL:["Philippine Airlines","A321 A330 A350 777"],HVN:["Vietnam Airlines","A321 A350 787"],
+AIC:["Air India","A320 A321 A350 777 787"],JAL:["Japan Airlines","A350 737 767 777 787"],ANA:["ANA","A320 A321 A380 737 767 777 787"],
+KAL:["Korean Air","A220 A321 A330 A380 737 747 777 787"],AAR:["Asiana Airlines","A321 A330 A350 A380 777"],
+CCA:["Air China","A319 A320 A321 A330 A350 737 747 777 787"],CES:["China Eastern","A319 A320 A321 A330 A350 737 777 787"],
+CSN:["China Southern","A320 A321 A330 A350 737 777 787"],CAL:["China Airlines","A321 A330 A350 777"],EVA:["EVA Air","A321 A330 777 787"],
+QFA:["Qantas","A330 A380 737 787"],JST:["Jetstar","A320 A321 787"],ANZ:["Air New Zealand","A320 A321 777 787"],
+UAL:["United Airlines","A319 A320 A321 737 757 767 777 787"],AAL:["American Airlines","A319 A320 A321 737 777 787"],
+DAL:["Delta Air Lines","A220 A319 A320 A321 A330 A350 737 757 767"],JBU:["JetBlue","A220 A320 A321"],
+ASA:["Alaska Airlines","737 787 A321"],HAL:["Hawaiian Airlines","A321 A330 787"],ACA:["Air Canada","A220 A320 A321 A330 737 777 787"],
+LAN:["LATAM","A320 A321 767 777 787"],TAM:["LATAM Brasil","A320 A321 767 777 787"],LPE:["LATAM Perú","A319 A320 A321 767 787"],
+AVA:["Avianca","A319 A320 A321 787"],AZU:["Azul","A320 A321 A330"]
+};
+for(const k in AL) AL[k][1]=AL[k][1].split(" ");
+const NAMES={A220:"Airbus A220",A318:"Airbus A318",A319:"Airbus A319",A320:"Airbus A320",A321:"Airbus A321",A330:"Airbus A330",A340:"Airbus A340",A350:"Airbus A350",A380:"Airbus A380","737":"Boeing 737","747":"Boeing 747","757":"Boeing 757","767":"Boeing 767","777":"Boeing 777","787":"Boeing 787"};
+const TYPE={BCS1:"A220",BCS3:"A220",A318:"A318",A319:"A319",A19N:"A319",A320:"A320",A20N:"A320",A321:"A321",A21N:"A321",
+A332:"A330",A333:"A330",A338:"A330",A339:"A330",A342:"A340",A343:"A340",A345:"A340",A346:"A340",A359:"A350",A35K:"A350",A388:"A380",
+B731:"737",B732:"737",B733:"737",B734:"737",B735:"737",B736:"737",B737:"737",B738:"737",B739:"737",B37M:"737",B38M:"737",B39M:"737",B3XM:"737",
+B744:"747",B748:"747",B752:"757",B753:"757",B762:"767",B763:"767",B764:"767",B772:"777",B773:"777",B77L:"777",B77W:"777",B778:"777",B779:"777",
+B788:"787",B789:"787",B78X:"787"};
+const SUB={BCS1:"A220-100",BCS3:"A220-300",A19N:"A319neo",A20N:"A320neo",A21N:"A321neo",A332:"A330-200",A333:"A330-300",A338:"A330-800neo",A339:"A330-900neo",
+A342:"A340-200",A343:"A340-300",A345:"A340-500",A346:"A340-600",A359:"A350-900",A35K:"A350-1000",A388:"A380-800",B736:"737-600",B737:"737-700",B738:"737-800",B739:"737-900",
+B37M:"737 MAX 7",B38M:"737 MAX 8",B39M:"737 MAX 9",B3XM:"737 MAX 10",B744:"747-400",B748:"747-8",B752:"757-200",B753:"757-300",B762:"767-200",B763:"767-300",B764:"767-400",
+B772:"777-200",B773:"777-300",B77L:"777-200LR",B77W:"777-300ER",B778:"777-8",B779:"777-9",B788:"787-8",B789:"787-9",B78X:"787-10"};
+const RANGE={A220:[0,2600],A318:[0,2800],A319:[0,3000],A320:[0,3000],A321:[0,3800],"737":[0,3200],"757":[0,3800],"767":[0,5500],A330:[0,6500],"787":[0,7600],A350:[600,8200],"777":[600,7600],A340:[1500,7200],"747":[1500,7200],A380:[1500,8000]};
+const REGIONS=[[50.1,8.6],[51.5,-0.4],[49.0,2.5],[52.3,4.8],[41.3,28.8],[40.5,-3.6],[47.5,11.5],[25.2,55.3],[25.3,51.6],[28.6,77.1],[19.1,72.9],
+[1.4,103.9],[22.3,113.9],[13.7,100.7],[35.6,139.8],[37.5,126.5],[31.2,121.5],[-33.9,151.2],[40.6,-73.8],[41.9,-87.9],[33.6,-84.4],[33.9,-118.4],
+[37.6,-122.4],[32.9,-97.0],[43.7,-79.6],[25.8,-80.3],[47.4,-122.3],[-23.4,-46.5],[19.4,-99.1],[-26.1,28.2],[60.3,24.9],[55.6,12.6]];
+const PIDS=["p1","p2"];
+// Gebiete mit viel Langstreckenverkehr: Drehkreuze und Nordatlantik-Korridor
+const LONG_REGIONS=[[25.2,55.3],[25.3,51.6],[24.4,54.6],[51.5,-0.4],[50.1,8.6],[49.0,2.5],[52.3,4.8],[41.3,28.8],[40.5,-3.6],
+[53,-20],[52,-35],[49,-45],[40.6,-73.8],[42.4,-71],[33.9,-118.4],[37.6,-122.4],[1.4,103.9],[22.3,113.9],[35.6,139.8],[37.5,126.5],
+[28.6,77.1],[13.7,100.7],[-33.9,151.2],[31.2,121.5],[40.1,116.6],[47.4,-122.3],[43.7,-79.6],[-23.4,-46.5],[9,38.8]];
+
+const disp=m=>m&&/^7\d7/.test(m)?"B"+m:m;
+function normalize(raw){
+  let s=(raw||"").toUpperCase().replace(/AIRBUS|BOEING|[\s\-_.]/g,"");
+  if(!s) return null;
+  if(/DREAMLINER/.test(s)) return "787";
+  if(/JUMBO/.test(s)) return "747";
+  if(/TRIPLESEVEN/.test(s)) return "777";
+  if(/^(737)?MAX/.test(s)) return "737";
+  if(TYPE[s.slice(0,4)]) return TYPE[s.slice(0,4)];
+  let m=s.match(/^A?(220|318|319|320|321|330|340|350|380)/); if(m) return "A"+m[1];
+  m=s.match(/^B?(7[3-8]7)/); if(m) return m[1];
+  return null;
+}
+
+// ===================== Geo =====================
+const R=3440.065, rad=d=>d*Math.PI/180, deg=r=>r*180/Math.PI;
+function dist(a,b){const dl=rad(b[0]-a[0]),dn=rad(b[1]-a[1]);const h=Math.sin(dl/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.min(1,Math.sqrt(h)));}
+function gc(a,b,n=64){const p1=[rad(a[0]),rad(a[1])],p2=[rad(b[0]),rad(b[1])],d=dist(a,b)/R;if(d<1e-6)return[a,b];const out=[];
+  for(let i=0;i<=n;i++){const f=i/n,A=Math.sin((1-f)*d)/Math.sin(d),B=Math.sin(f*d)/Math.sin(d);
+    const x=A*Math.cos(p1[0])*Math.cos(p1[1])+B*Math.cos(p2[0])*Math.cos(p2[1]),y=A*Math.cos(p1[0])*Math.sin(p1[1])+B*Math.cos(p2[0])*Math.sin(p2[1]),z=A*Math.sin(p1[0])+B*Math.sin(p2[0]);
+    out.push([deg(Math.atan2(z,Math.hypot(x,y))),deg(Math.atan2(y,x))]);}
+  return unwrap(out);}
+function unwrap(pts,ref){const o=[];let prev=ref??null;for(const p of pts){let lon=p[1];if(prev!==null){while(lon-prev>180)lon-=360;while(lon-prev<-180)lon+=360;}o.push([p[0],lon]);prev=lon;}return o;}
+
+// ===================== Live-Daten =====================
+// Live-Daten laufen ausschließlich über die eigene Cloudflare-Weiterleitung zu adsb.lol.
+// (adsb.fi, airplanes.live und direkte Abrufe sind dauerhaft gesperrt und würden schwache Verbindungen nur zusätzlich belasten.)
+const PROXY="https://flugduell-proxy.hendrik-bollinger.workers.dev/?url=";
+const viaProxy=u=>PROXY+encodeURIComponent(u);
+const SRC={area:(la,lo,r)=>`https://api.adsb.lol/v2/point/${la}/${lo}/${r}`,hex:h=>`https://api.adsb.lol/v2/hex/${h}`};
+let DIAG=[];const note=m=>{DIAG.push(m);if(DIAG.length>80)DIAG.shift();};
+const errTxt=e=>e.name==="AbortError"?"Zeitüberschreitung":/Load failed|Failed to fetch|NetworkError|network/i.test(e.message)?"keine Verbindung":e.message;
+let netFails=0; // aufeinanderfolgende Netzfehler (Zeitüberschreitung/keine Verbindung)
+async function getJSON(url,ms=9000,signal){const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms);
+  const onAbort=()=>ctl.abort();signal&&signal.addEventListener("abort",onAbort);
+  try{const r=await fetch(url,{signal:ctl.signal,cache:"no-store"});if(!r.ok){const e=new Error("HTTP "+r.status);e.status=r.status;throw e;}const txt=await r.text();return JSON.parse(txt);}
+  finally{clearTimeout(t);signal&&signal.removeEventListener("abort",onAbort);}}
+// Mit Wiederholung: bei Zeitüberschreitung, Netzfehler, 429 und 5xx bis zu `tries` Versuche mit wachsender Wartezeit
+async function getRetry(url,label,tries=3,base=9000){
+  let last;
+  for(let i=0;i<tries;i++){
+    if(searchCtl&&searchCtl.cancelled)throw new Error("abgebrochen");
+    try{const d=await getJSON(url,base+i*4000);netFails=0;return d;}
+    catch(e){last=e;note(`${label}: ${errTxt(e)}${i<tries-1?" – neuer Versuch":""}`);
+      const net=!e.status;if(net)netFails++;
+      if(e.status&&e.status!==429&&e.status<500)break;
+      if(i<tries-1)await new Promise(r=>setTimeout(r,700*(i+1)));}
+  }
+  throw last;
+}
+async function adsbArea(la,lo,rad){const d=await getRetry(viaProxy(SRC.area(la,lo,rad)),"Live-Daten",3);return {ac:d.ac||[],src:"adsb.lol"};}
+async function adsbHex(h){const d=await getJSON(viaProxy(SRC.hex(h)),8000);return {ac:d.ac||[]};}
+async function routeAdsbdb(cs){
+  try{
+    const r=await getRetry(viaProxy("https://api.adsbdb.com/v0/callsign/"+cs),"Route "+cs,2,8000);
+    const f=r.response&&r.response.flightroute;if(!f)return null;
+    const m=a=>({icao:a.icao_code,iata:a.iata_code,name:a.name,location:a.municipality,lat:a.latitude,lon:a.longitude});
+    return {callsign:cs,_airports:[m(f.origin),m(f.destination)],plausible:true};
+  }catch(e){return null;}
+}
+function parseCs(ac){const cs=(ac.flight||"").trim();const m=cs.match(/^([A-Z]{3})(\d{1,4})([A-Z]{0,2})$/);if(!m)return null;return {cs,al:m[1],num:+m[2]};}
+function isCandidate(ac,cat,minAlt=12000){
+  if(!ac||typeof ac.alt_baro!=="number"||ac.alt_baro<minAlt)return false;
+  if(ac.lat==null||ac.lon==null||!TYPE[ac.t])return false;
+  if((ac.dbFlags||0)&1)return false;
+  const c=parseCs(ac);if(!c||!AL[c.al])return false;
+  if(!inCat(TYPE[ac.t],cat))return false;
+  if(cat!=="all"&&fleetIn(c.al,cat).length<2)return false;
+  if(c.num>=9000)return false;
+  if(["UAE","QTR","ETD","SIA","CPA","THY","KAL","AAR","CAL","EVA","CSN","CES","CCA","ETH","SVA","DLH","AFR","KLM","BAW"].includes(c.al)&&c.num>=8000)return false;
+  return true;
+}
+function legFor(rt,pos){
+  const a=rt._airports.filter(x=>x&&x.lat!=null);if(a.length<2)return null;let b=null;
+  for(let i=0;i<a.length-1;i++){const o=[a[i].lat,a[i].lon],d=[a[i+1].lat,a[i+1].lon];const dev=dist(o,pos)+dist(pos,d)-dist(o,d);if(!b||dev<b.dev)b={dev,o:a[i],d:a[i+1]};}
+  return b;
+}
+let searchCtl=null;
+// Abwechslung: kürzlich gespielte Modelle und Airlines werden seltener gezogen, häufige Typen im Gebiet abgewertet
+function varietyPick(cands,recent,me,n){
+  const mRecent=recent.map(h=>h.answer),aRecent=recent.map(h=>(h.cs||"").slice(0,3));
+  const last2M=mRecent.slice(-2),last2A=aRecent.slice(-2);
+  const freq={};cands.forEach(a=>{const m=TYPE[a.t];freq[m]=(freq[m]||0)+1;});
+  let pool=cands.filter(a=>{const m=TYPE[a.t],al=parseCs(a).al;return !last2M.includes(m)&&!last2A.includes(al);});
+  if(pool.length<2)pool=cands.filter(a=>TYPE[a.t]!==mRecent.at(-1)&&parseCs(a).al!==aRecent.at(-1));
+  if(!pool.length)pool=cands;
+  const scored=pool.map(a=>{const m=TYPE[a.t],al=parseCs(a).al;
+    let w=1/(1+2.5*mRecent.filter(x=>x===m).length+1.5*aRecent.filter(x=>x===al).length);
+    w*=1/Math.sqrt(freq[m]||1);
+    if(me)w*=1/(1+dist([me.lat,me.lon],[a.lat,a.lon])/60);
+    return {a,k:Math.pow(Math.random(),1/w)};});
+  return scored.sort((x,y)=>y.k-x.k).slice(0,n).map(x=>x.a);
+}
+async function findFlight(exclude,cat,me){
+  const recent=(G()&&G().history||[]).slice(-6);
+  netDown=false;
+  // Weltweit: zufällige Regionen. Über mir: erst 100 nm, dann 250 nm um den eigenen Standort, nächste Flüge zuerst
+  const pool=cat==="long"?LONG_REGIONS:REGIONS;
+  const regions=me?[[me.lat,me.lon,100],[me.lat,me.lon,250]]:[...pool].sort(()=>Math.random()-.5).slice(0,6).map(([a,b])=>[a,b,250]);
+  for(let i=0;i<regions.length;i++){
+    if(searchCtl&&searchCtl.cancelled)return null;
+    if(i)await new Promise(r=>setTimeout(r,800));
+    setStatus(me?(i===0?"Radar sucht über dir …":"Erweitere den Suchradius …"):(i===0?"Radar läuft …":"Suche in einer anderen Region …"));
+    const [la,lo,rad]=regions[i];
+    let data;try{data=await adsbArea(la,lo,rad);}catch(e){note("Gebiet "+(i+1)+": keine Daten");
+      if(!navigator.onLine){netDown=true;return null;}
+      if(i<regions.length-1){setStatus("Verbindung hakt, versuche es erneut …");}continue;}
+    let cands=data.ac.filter(a=>isCandidate(a,cat,me?2500:12000)).filter(a=>!exclude.has(a.hex));
+    cands=varietyPick(cands,recent,me,me?8:6);
+    note(`${data.src}: ${data.ac.length} Flugzeuge, ${cands.length} Kandidaten`);
+    if(!cands.length)continue;
+    setStatus(`${cands.length} Kandidaten gefunden, prüfe Routen …`);
+    const rts=await Promise.all(cands.map(a=>routeAdsbdb(parseCs(a).cs)));
+    for(let k=0;k<cands.length;k++){
+      const ac=cands[k],rt=rts[k];if(!rt)continue;
+      const leg=legFor(rt,[ac.lat,ac.lon]);if(!leg)continue;
+      const total=dist([leg.o.lat,leg.o.lon],[leg.d.lat,leg.d.lon]);
+      if(total<(me?80:150)||leg.dev>Math.max(250,total*0.25))continue;
+      if(dist([ac.lat,ac.lon],[leg.d.lat,leg.d.lon])<(me?15:120))continue;
+      return {hex:ac.hex,cs:parseCs(ac).cs,al:parseCs(ac).al,type:ac.t,reg:ac.r||"",o:leg.o,d:leg.d,ac};
+    }
+    note("Keine plausible Route in diesem Gebiet");
+  }
+  return null;
+}
+
+
+
+// ===================== Kategorien =====================
+const LONG=new Set(["A330","A340","A350","A380","747","767","777","787"]);
+const SHORT=new Set(["A220","A318","A319","A320","A321","737","757"]);
+const CATS={long:{t:"Langstrecke",d:"A330, A350, A380, B747, B777, B787 …",set:LONG},
+  short:{t:"Kurz- & Mittelstrecke",d:"A220, A320-Familie, B737, B757",set:SHORT},
+  all:{t:"Alle Typen",d:"Jeder Airbus und Boeing im Linienverkehr",set:null}};
+const inCat=(model,cat)=>!CATS[cat].set||CATS[cat].set.has(model);
+const fleetIn=(al,cat)=>AL[al][1].filter(t=>inCat(t,cat));
+
+// ===================== Zustand =====================
+const KEY="flugduell-online-shell";let S;
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+  if(!S)S={setup:{mode:"duo",cat:"all",rounds:10,names:["Player 1","Player 2"]},game:null,mapStyle:"map"};
+  if(S.setup.rounds===undefined)S.setup.rounds=10;
+  S.ach=S.ach||{};S.life=S.life||{rounds:0,hits:0,free:0,sub:0,best:0,types:[],airlines:[]};S.life.near=S.life.near||0;
+  if(!S.setup.area)S.setup.area="world";}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const G=()=>S.game;
+const pids=()=>G().players.map((_,i)=>"p"+(i+1));
+const ptsOf=(r,p)=>r.pts?r.pts[p]||0:(r.guess[p]===r.answer?1:0);
+function scores(){const s={};pids().forEach(p=>s[p]=0);for(const r of G().history)for(const p of pids())s[p]+=ptsOf(r,p);return s;}
+function hits(p){return G().history.filter(r=>r.guess[p]===r.answer).length;}
+const isOver=()=>G().rounds&&G().history.length>=G().rounds&&(!G().round||G().round.revealed);
+// Genaues Submodell erkannt? (z. B. A350-1000, 77W, 737 MAX 8)
+function exactSub(raw,code){
+  if(!raw||!SUB[code])return false;
+  const clean=x=>x.toUpperCase().replace(/AIRBUS|BOEING|[\s\-_.]/g,"");
+  const s=clean(raw),sub=clean(SUB[code]);
+  return [code,sub,"B"+sub,sub.replace(/^A/,""),code.replace(/^B/,"")].includes(s);
+}
+function streak(){let n=0;for(const r of [...G().history].reverse()){if(r.guess.p1===r.answer)n++;else break;}return n;}
+let live=null,lastOk=0,phase="menu";
+
+function startGame(){
+  const st=S.setup,names=st.mode==="solo"?[st.names[0]]:st.names.slice(0,2);
+  S.game={mode:st.mode,cat:st.cat,area:st.area||"world",rounds:st.rounds||0,players:names.map((n,i)=>n.trim()||`Player ${i+1}`),history:[],round:null};
+  save();phase="game";newRound();
+}
+let errMsg="",netDown=false,autoRetry=null,autoTries=0;
+// Bei Netzproblemen automatisch erneut suchen, sobald wieder Verbindung besteht
+window.addEventListener("online",()=>{if(phase==="error"&&netDown){autoTries=0;newRound();}});
+function locate(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej({code:2});
+  navigator.geolocation.getCurrentPosition(p=>res({lat:+p.coords.latitude.toFixed(3),lon:+p.coords.longitude.toFixed(3)}),rej,{enableHighAccuracy:false,timeout:15000,maximumAge:300000});});}
+const DIRS=["Norden","Nordosten","Osten","Südosten","Süden","Südwesten","Westen","Nordwesten"];
+function bearing(a,b){const y=Math.sin(rad(b[1]-a[1]))*Math.cos(rad(b[0])),x=Math.cos(rad(a[0]))*Math.sin(rad(b[0]))-Math.sin(rad(a[0]))*Math.cos(rad(b[0]))*Math.cos(rad(b[1]-a[1]));return (deg(Math.atan2(y,x))+360)%360;}
+async function newRound(){
+  phase="loading";DIAG=[];searchCtl={cancelled:false};live=null;lastOk=0;render();
+  const recent=new Set(G().history.slice(-60).map(h=>h.hex));
+  let me=null;errMsg="";
+  if(G().area==="near"){
+    setStatus("Standort wird bestimmt …");
+    try{me=await locate();G().me=me;}
+    catch(e){if(searchCtl.cancelled)return;
+      errMsg=e&&e.code===1?"Standortzugriff verweigert. In Safari: auf „aA“ in der Adressleiste tippen → Website-Einstellungen → Standort → Erlauben. Als App vom Home-Bildschirm: iPhone-Einstellungen → Datenschutz & Sicherheit → Ortungsdienste → Safari-Websites → „Beim Verwenden“."
+        :"Dein Standort konnte nicht bestimmt werden. Prüf, ob die Ortungsdienste eingeschaltet sind, und versuch es nochmal.";
+      phase="error";render();return;}
+  }
+  if(!navigator.onLine){netDown=true;phase="error";render();return;}
+  let f=null;try{f=await findFlight(recent,G().cat,me);}catch(e){note("Fehler: "+e.message);}
+  if(searchCtl.cancelled)return;
+  // Nichts Passendes, aber Netz in Ordnung: einmal in anderen Gebieten weitersuchen, bevor eine Meldung kommt
+  if(!f&&!netDown&&!me&&!errMsg){setStatus("Suche in weiteren Regionen …");try{f=await findFlight(recent,G().cat,me);}catch(e){}if(searchCtl.cancelled)return;}
+  if(!f&&netFails>0&&!errMsg)netDown=true;
+  if(!f&&netDown){phase="error";render();
+    // bis zu 3 automatische neue Versuche mit Pause
+    if(autoTries<3&&navigator.onLine){autoTries++;clearTimeout(autoRetry);autoRetry=setTimeout(()=>{if(phase==="error")newRound();},6000);}
+    return;}
+  if(!f){if(me)errMsg="Gerade fliegt in deiner Nähe (bis ca. 460 km) kein passender Linienflug. Versuch es gleich nochmal oder wähle „Alle Typen“.";phase="error";render();return;}
+  f.me=me;
+  const g={};pids().forEach(p=>g[p]=null);
+  G().round={...f,ac:undefined,options:null,guess:{...g},mode:Object.fromEntries(pids().map(p=>[p,"text"])),draft:{},revealed:false,trail:[[f.ac.lat,f.ac.lon,f.ac.alt_baro]]};
+  autoTries=0;netDown=false;
+  live=f.ac;lastOk=Date.now();phase="game";save();render();
+}
+function drawOptions(){
+  const r=G().round,model=TYPE[r.type],total=dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon]);
+  let pool=fleetIn(r.al,G().cat);if(pool.length<3)pool=AL[r.al][1];
+  const fleet=pool.filter(t=>t!==model);
+  const fits=t=>total>=RANGE[t][0]&&total<=RANGE[t][1];
+  const near=t=>Math.abs(RANGE[t][1]-total);
+  const others=[...fleet.filter(fits).sort(()=>Math.random()-.5),...fleet.filter(t=>!fits(t)).sort((a,b)=>near(a)-near(b))].slice(0,2);
+  r.options=[model,...others].sort(()=>Math.random()-.5);
+  for(const p of pids())if(!r.guess[p]){r.mode[p]="mc";r.draft[p]="";}
+  save();render();
+}
+function lockText(pid){const raw=document.getElementById("in-"+pid).value;const m=normalize(raw);
+  if(!m){const e=document.getElementById("err-"+pid);e.textContent="Typ nicht erkannt. Beispiele: A330, B787, B77W";e.hidden=false;return;}
+  const r=G().round;r.guess[pid]=m;r.raw=r.raw||{};r.raw[pid]=raw.trim();save();afterGuess();}
+function pickOption(pid,t){G().round.guess[pid]=t;G().round.mode[pid]="mc";save();afterGuess();}
+function afterGuess(){if(G().mode==="solo")reveal();else render();}
+function unlock(pid){G().round.guess[pid]=null;save();render();}
+// ===================== Abzeichen (Singleplayer) =====================
+const ALL_MODELS=["A220","A319","A320","A321","A330","A340","A350","A380","737","747","757","767","777","787"];
+const L_=()=>S.life;
+const ACH=[
+ {g:"Erste Schritte",id:"first",t:"Erstflug",d:"Den ersten Flugzeugtyp richtig erkannt",goal:1,val:()=>L_().hits},
+ {g:"Erste Schritte",id:"free10",t:"Ohne Spickzettel",d:"10 Treffer per Freitext",goal:10,val:()=>L_().free},
+ {g:"Erste Schritte",id:"sub1",t:"Typenkenner",d:"Ein Submodell exakt benannt, z. B. B777-300ER",goal:1,val:()=>L_().sub},
+ {g:"Erste Schritte",id:"sub10",t:"Datenblatt im Kopf",d:"10 Submodelle exakt benannt",goal:10,val:()=>L_().sub},
+ {g:"Serien",id:"st5",t:"Steigflug",d:"5 Treffer in Folge",goal:5,val:()=>L_().best},
+ {g:"Serien",id:"st10",t:"Reiseflughöhe",d:"10 Treffer in Folge",goal:10,val:()=>L_().best},
+ {g:"Serien",id:"st20",t:"Stratosphäre",d:"20 Treffer in Folge",goal:20,val:()=>L_().best},
+ {g:"Matches",id:"perf5",t:"Saubere Landung",d:"Ein 5-Runden-Match ohne Fehler"},
+ {g:"Matches",id:"perf10",t:"Butterweich",d:"Ein 10-Runden-Match ohne Fehler"},
+ {g:"Matches",id:"capt",t:"Kapitän",d:"Ein 10-Runden-Match komplett per Freitext richtig"},
+ {g:"Matches",id:"pts25",t:"Bestnote",d:"25 Punkte oder mehr in einem 10-Runden-Match"},
+ {g:"Matches",id:"longpro",t:"Langstrecken-Profi",d:"8 von 10 im Modus Langstrecke"},
+ {g:"Matches",id:"shortpro",t:"Kurzstrecken-Profi",d:"8 von 10 im Modus Kurz- & Mittelstrecke"},
+ {g:"Sammlung",id:"types8",t:"Typenvielfalt",d:"8 verschiedene Modelle erkannt",goal:8,val:()=>L_().types.length},
+ {g:"Sammlung",id:"typesall",t:"Komplette Flotte",d:"Alle 14 Airbus- und Boeing-Modelle erkannt",goal:14,val:()=>L_().types.filter(t=>ALL_MODELS.includes(t)).length},
+ {g:"Sammlung",id:"al10",t:"Vielflieger",d:"Flüge von 10 verschiedenen Airlines erkannt",goal:10,val:()=>L_().airlines.length},
+ {g:"Sammlung",id:"al25",t:"Weltenbummler",d:"Flüge von 25 verschiedenen Airlines erkannt",goal:25,val:()=>L_().airlines.length},
+ {g:"Sammlung",id:"r100",t:"Hundert Flüge",d:"100 Runden gespielt",goal:100,val:()=>L_().rounds},
+ {g:"Besondere Flüge",id:"queen",t:"Königin der Lüfte",d:"Eine Boeing 747 erkannt"},
+ {g:"Besondere Flüge",id:"a380",t:"Superjumbo",d:"Einen Airbus A380 erkannt"},
+ {g:"Besondere Flüge",id:"ulr",t:"Ultralangstrecke",d:"Typ auf einem Flug über 11.000 km erkannt"},
+ {g:"Besondere Flüge",id:"night",t:"Nachtflug",d:"Ein Treffer zwischen 0 und 5 Uhr"},
+ {g:"Besondere Flüge",id:"spot5",t:"Planespotter",d:"5 Treffer im Modus Über mir",goal:5,val:()=>L_().near||0}
+];
+const achQueue=[];
+function grant(id){if(S.ach[id])return;S.ach[id]=Date.now();achQueue.push(id);if(G()){G().newAch=G().newAch||[];G().newAch.push(id);}}
+function checkCounters(){for(const a of ACH)if(a.goal&&a.val()>=a.goal)grant(a.id);}
+function achRound(r,h){
+  const L=L_(),ok=h.guess.p1===h.answer;L.rounds++;
+  if(ok){L.hits++;if(h.mode.p1!=="mc")L.free++;if(h.bonus&&h.bonus.p1)L.sub++;
+    if(!L.types.includes(h.answer))L.types.push(h.answer);if(!L.airlines.includes(r.al))L.airlines.push(r.al);
+    if(h.answer==="747")grant("queen");if(h.answer==="A380")grant("a380");
+    if(dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon])>=5940)grant("ulr");
+    if(new Date().getHours()<5)grant("night");
+    if(G().area==="near")L.near=(L.near||0)+1;}
+  L.best=Math.max(L.best,streak());checkCounters();
+}
+function achMatch(){
+  const g=G(),hs=g.history,n=hs.length,allOk=hs.every(h=>h.guess.p1===h.answer),hitsN=hits("p1");
+  if(g.rounds===5&&n>=5&&allOk)grant("perf5");
+  if(g.rounds===10&&n>=10){if(allOk)grant("perf10");if(allOk&&hs.every(h=>h.mode.p1!=="mc"))grant("capt");if(scores().p1>=25)grant("pts25");
+    if(g.cat==="long"&&hitsN>=8)grant("longpro");if(g.cat==="short"&&hitsN>=8)grant("shortpro");}
+}
+const BADGE='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l2.2 4.6 5 .7-3.6 3.5.9 5L12 15.4 7.5 17.8l.9-5L4.8 9.3l5-.7z"/><path d="M2 20h5M17 20h5"/></svg>';
+let toastBusy=false;
+function showToasts(){
+  if(toastBusy||!achQueue.length)return;toastBusy=true;
+  const id=achQueue.shift(),a=ACH.find(x=>x.id===id),el=document.getElementById("toast");
+  el.innerHTML=`<span class="badge on">${BADGE}</span><div><span class="cap">Abzeichen freigeschaltet</span><b>${esc(a.t)}</b></div>`;
+  requestAnimationFrame(()=>el.classList.add("in"));
+  setTimeout(()=>{el.classList.remove("in");setTimeout(()=>{toastBusy=false;showToasts();},500);},3200);
+}
+function reveal(){
+  const r=G().round,ans=TYPE[r.type],pts={},bonus={};
+  for(const p of pids()){const ok=r.guess[p]===ans,mc=r.mode[p]==="mc";bonus[p]=ok&&!mc&&exactSub(r.raw&&r.raw[p],r.type);pts[p]=ok?(mc?1:2)+(bonus[p]?1:0):0;}
+  r.revealed=true;
+  G().history.push({hex:r.hex,cs:r.cs,type:r.type,reg:r.reg,o:r.o.iata||r.o.icao,d:r.d.iata||r.d.icao,answer:ans,guess:{...r.guess},mode:{...r.mode},pts,bonus});
+  if(G().mode==="solo"){achRound(r,G().history.at(-1));}
+  save();render();window.scrollTo({top:0,behavior:"smooth"});loadPhoto(r);showToasts();
+}
+// ---------- Foto (Planespotters.net) ----------
+const photoCache={};
+async function loadPhoto(r){
+  const key=r.hex;if(photoCache[key]===undefined){
+    photoCache[key]=null;
+    // Planespotters-Bedingungen: API direkt aus dem Browser abfragen (nicht über die Weiterleitung),
+    // Bilder vom Browser des Nutzers laden, Fotograf nennen und auf die Fotoseite verlinken.
+    const urls=[`https://api.planespotters.net/pub/photos/hex/${r.hex.replace(/^~/,"").toUpperCase()}`];
+    if(r.reg)urls.push(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(r.reg)}`);
+    for(const u of urls){
+      try{const d=await getRetry(u,"Foto",2,9000);const p=d&&d.photos&&d.photos[0];
+        if(p){photoCache[key]={src:(p.thumbnail_large||p.thumbnail).src,link:p.link,by:p.photographer};break;}}
+      catch(e){note("Foto: "+errTxt(e));}
+    }
+    if(!photoCache[key])photoCache[key]=false;
+  }
+  paintPhoto(key);
+}
+let vOverlay="",vCode="";
+function paintPhoto(key){
+  const box=document.getElementById("photo");if(!box)return;const p=photoCache[key];
+  if(!p){box.innerHTML=`<div class="ph">${esc(vCode)}</div>${vOverlay}`;return;}
+  box.innerHTML=`<a class="plink" href="${esc(p.link)}" target="_blank"><img alt="Foto der Maschine auf Planespotters.net"></a><div class="credit">Foto: ${esc(p.by||"Planespotters.net")} · <a href="${esc(p.link)}" target="_blank">Planespotters.net</a></div>${vOverlay}`;
+  const img=box.querySelector("img");img.onload=()=>img.classList.add("in");img.src=p.src;
+}
+
+// ===================== Karte =====================
+let map,layers=[],planeMk,trailGrp,tiles;
+const PLANE_SVG=a=>`<div class="plane-wrap"><svg width="30" height="30" viewBox="0 0 24 24" style="transform:rotate(${a}deg)"><path fill="#F5B83D" stroke="#2a1d05" stroke-width=".7" stroke-linejoin="round" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></div>`;
+const PLANE_ICON=a=>L.divIcon({className:"",html:PLANE_SVG(a),iconSize:[44,44],iconAnchor:[22,22]});
+let gridLayer=null;
+function drawGrid(){
+  if(gridLayer)return;gridLayer=L.layerGroup();
+  const st={color:"#9fc3ff",opacity:.07,weight:1,interactive:false};
+  for(let la=-80;la<=80;la+=10){const pts=[];for(let lo=-540;lo<=540;lo+=10)pts.push([la,lo]);L.polyline(pts,st).addTo(gridLayer);}
+  for(let lo=-540;lo<=540;lo+=10)L.polyline([[-85,lo],[85,lo]],st).addTo(gridLayer);
+  gridLayer.addTo(map);
+}
+const ESRI="https://server.arcgisonline.com/ArcGIS/rest/services/";
+function initMap(){if(map||!window.L)return;map=L.map("map",{zoomControl:false,attributionControl:true,zoomSnap:.25});setTiles();drawGrid();}
+function setTiles(){
+  if(!map)return;tiles&&tiles.forEach(t=>map.removeLayer(t));
+  const sat=S.mapStyle==="sat";
+  const urls=sat?[ESRI+"World_Imagery/MapServer/tile/{z}/{y}/{x}",ESRI+"Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"]
+    :[ESRI+"Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",ESRI+"Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"];
+  tiles=urls.map((u,i)=>L.tileLayer(u,{maxZoom:16,attribution:i?"":'© <a href="https://www.esri.com/">Esri</a>'}).addTo(map));
+  tiles.forEach(t=>t.bringToBack());
+  const w=document.querySelector(".mapwrap");w.classList.toggle("sat",sat);w.classList.toggle("chart",!sat);
+  document.getElementById("styleBtn").textContent=sat?"Karte":"Satellit";
+}
+function altColor(a){if(a==null)return "#9aa4b2";const h=50+Math.min(Math.max(a,0),41000)/41000*235;return `hsl(${h},90%,60%)`;}
+function drawTrail(){
+  const r=G().round;trailGrp&&map.removeLayer(trailGrp);trailGrp=L.layerGroup().addTo(map);
+  const pts=unwrap(r.trail,r.o.lon);
+  // Bereits geflogenes, aber nicht aufgezeichnetes Stück: Abflughafen bis Beginn der Spur (durchgezogen, dezent)
+  const first=pts[0],fromO=unwrap(gc([r.o.lat,r.o.lon],[first[0],first[1]],48),r.o.lon);
+  if(dist([r.o.lat,r.o.lon],[first[0],first[1]])>5){
+    L.polyline(fromO,{color:"#F5B83D",opacity:.12,weight:9,lineCap:"round",interactive:false}).addTo(trailGrp);
+    L.polyline(fromO,{color:"#F5B83D",opacity:.75,weight:2.4,lineCap:"round",interactive:false}).addTo(trailGrp);}
+  // Leuchtender Unterzug, darüber die nach Höhe eingefärbte Spur
+  if(pts.length>1){L.polyline(pts,{color:"#F5B83D",opacity:.16,weight:11,lineCap:"round",lineJoin:"round",interactive:false}).addTo(trailGrp);
+    L.polyline(pts,{color:"#05080d",opacity:.55,weight:5.5,lineCap:"round",lineJoin:"round",interactive:false}).addTo(trailGrp);}
+  for(let i=1;i<pts.length;i++)L.polyline([pts[i-1],pts[i]],{color:altColor(r.trail[i][2]),weight:3,lineCap:"round",interactive:false}).addTo(trailGrp);
+  // Gestrichelt: nur der noch vor dem Flugzeug liegende Weg zum Ziel
+  const here=pts.at(-1),ahead=unwrap(gc([here[0],here[1]],[r.d.lat,r.d.lon]),here[1]);
+  L.polyline(ahead,{color:"#E6EDF5",opacity:.85,weight:2,dashArray:"2 7",lineCap:"round",interactive:false}).addTo(trailGrp);
+  r._ahead=ahead;
+  return pts;
+}
+function setTraceNote(t){const e=document.getElementById("tracenote");if(e){e.textContent=t||"";e.hidden=!t;}}
+// ---------- Bisheriger Flugweg aus dem ADS-B-Verlauf ----------
+async function loadTrace(r){
+  try{
+    const h=r.hex.toLowerCase().replace(/^~/,"");let d=null,why="";
+    setTraceNote("Flugverlauf wird geladen …");
+    for(const kind of ["full","recent"]){
+      const u=`https://globe.adsb.lol/data/traces/${h.slice(-2)}/trace_${kind}_${h}.json`;
+      try{d=await getJSON(PROXY+encodeURIComponent(u),12000);if(d&&Array.isArray(d.trace)&&d.trace.length)break;why=kind+": leer";d=null;}
+      catch(e){why=kind+": "+errTxt(e);}
+    }
+    if(!d){note("Verlauf: "+why);r.traceNote="Flugspur wird ab jetzt live aufgezeichnet";setTraceNote(r.traceNote);return;}
+    const pts=d.trace.map(p=>[(d.timestamp+p[0])*1000,p[1],p[2],p[3]]).filter(p=>p[1]!=null&&p[2]!=null);
+    let start=0;
+    for(let i=1;i<pts.length;i++){if(pts[i-1][3]==="ground"||pts[i][0]-pts[i-1][0]>30*60000)start=i;}
+    const leg=pts.slice(start);if(leg.length<2){r.traceNote="Flugverlauf zu kurz";setTraceNote(r.traceNote);return;}
+    if(G()&&G().round!==r)return;
+    const nearO=dist([leg[0][1],leg[0][2]],[r.o.lat,r.o.lon])<40;
+    r.depTime=nearO?leg[0][0]:null;
+    const step=Math.max(1,Math.ceil(leg.length/500));
+    const tr=leg.filter((p,i)=>i%step===0||i===leg.length-1).map(p=>[p[1],p[2],typeof p[3]==="number"?p[3]:null]);
+    const lastLive=r.trail.at(-1);if(lastLive)tr.push(lastLive);
+    r.trail=tr;r.traced=true;r.traceNote=r.depTime?"":"Verlauf beginnt nicht am Abflughafen, Startzeit geschätzt";
+    save();mapKey=null;if(phase==="game")showMap(true);setTraceNote(r.traceNote);tick();
+  }catch(e){r.traceNote="Flugverlauf: "+errTxt(e);setTraceNote(r.traceNote);}
+}
+let mapKey=null;
+function showMap(on){
+  const slot=document.getElementById("mapslot");slot.hidden=!on;if(!on){mapKey=null;return;}
+  const r=G().round;initMap();if(!map)return;map.invalidateSize();
+  const key=r.hex+r.cs;if(mapKey===key){updatePlane();return;}mapKey=key;
+  layers.forEach(l=>map.removeLayer(l));layers=[];
+  const line=unwrap([[r.o.lat,r.o.lon],[r.d.lat,r.d.lon]],r.o.lon);
+  const ic=c=>L.divIcon({className:"",html:`<div class="ap-ic ${c}"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+  const lbl=a=>`<b>${esc(a.iata||a.icao)}</b> ${esc((a.location||"").split(",").at(-1).trim())}`;
+  layers.push(L.marker(line[0],{icon:ic(""),interactive:false}).bindTooltip(lbl(r.o),{permanent:true,direction:"top",offset:[0,-8],className:"apt"}).addTo(map));
+  layers.push(L.marker(line.at(-1),{icon:ic("dest"),interactive:false}).bindTooltip(lbl(r.d),{permanent:true,direction:"top",offset:[0,-10],className:"apt"}).addTo(map));
+  const last=drawTrail().at(-1);
+  planeMk=L.marker(last,{icon:PLANE_ICON(live?.track||0),zIndexOffset:1000,interactive:false}).addTo(map);layers.push(planeMk);
+  let extra=[];
+  if(r.me){const mp=unwrap([[r.me.lat,r.me.lon]],r.o.lon)[0];extra=[mp];
+    layers.push(L.marker(mp,{icon:L.divIcon({className:"",html:'<div class="me-ic"></div>',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:900}).bindTooltip("Du",{permanent:true,direction:"bottom",offset:[0,8],className:"apt"}).addTo(map));}
+  // Über mir: auf dich und das Flugzeug zoomen, sonst auf die ganze Route
+  if(r.me)map.fitBounds(L.latLngBounds(extra.concat([last])),{padding:[60,60],maxZoom:9});
+  else map.fitBounds(L.latLngBounds(line.concat(unwrap(r.trail,r.o.lon),r._ahead||[])),{paddingTopLeft:[40,56],paddingBottomRight:[40,64]});
+}
+function updatePlane(){
+  if(!map||!planeMk||!live||!G()||!G().round)return;
+  const pts=drawTrail();planeMk.setLatLng(pts.at(-1));
+  planeMk.setIcon(PLANE_ICON(live.track||0));
+}
+document.getElementById("styleBtn").onclick=()=>{S.mapStyle=S.mapStyle==="sat"?"map":"sat";save();setTiles();};
+document.getElementById("center").onclick=()=>{if(map&&planeMk)map.setView(planeMk.getLatLng(),Math.max(map.getZoom(),7));};
+
+// ===================== Live-Abfrage =====================
+let polling=false;
+async function poll(){
+  const r=G()&&G().round;if(!r||!r.hex||document.hidden||polling||phase!=="game")return;
+  polling=true;
+  try{const d=await adsbHex(r.hex);const ac=d.ac[0];
+    if(ac&&ac.lat!=null){live=ac;lastOk=Date.now();const last=r.trail.at(-1);
+      if(!last||dist(last,[ac.lat,ac.lon])>1){r.trail.push([ac.lat,ac.lon,typeof ac.alt_baro==="number"?ac.alt_baro:null]);if(r.trail.length>800)r.trail.shift();save();}
+      updatePlane();}
+  }catch(e){}
+  polling=false;tick();
+}
+setInterval(poll,10000);setInterval(tick,1000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)poll();});
+
+// ===================== Darstellung =====================
+const $=h=>{const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild;};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtT=t=>new Date(t).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+function dur(m){m=Math.max(0,Math.round(m));const h=Math.floor(m/60),mm=m%60;return h?`${h}h ${String(mm).padStart(2,"0")}m`:`${mm}m`;}
+const PCOL=["var(--p1)","var(--p2)"],PSOFT=["var(--p1-soft)","var(--p2-soft)"];
+const PLANE_PATH='<path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/>';
+function calc(){
+  const r=G()&&G().round;if(!r||!live)return null;const pos=[live.lat,live.lon],o=[r.o.lat,r.o.lon],d=[r.d.lat,r.d.lon];
+  const gs=Math.max(180,live.gs||450),flown=dist(o,pos),rem=dist(pos,d);
+  const el=r.depTime?(Date.now()-r.depTime)/60000:flown/Math.max(gs,420)*60+14,remain=live.alt_baro==="ground"?0:rem/Math.max(gs,300)*60+12;
+  return {el,remain,pct:Math.min(100,flown/(flown+rem)*100),dep:Date.now()-el*60000,arr:Date.now()+remain*60000};
+}
+const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+function tick(){
+  const c=calc();
+  const hud=document.getElementById("hud");
+  if(live&&typeof live.alt_baro==="number"){hud.hidden=false;
+    set("h-fl",String(Math.round(live.alt_baro/100)).padStart(3,"0"));
+    set("h-hd",live.track!=null?String(Math.round(live.track)%360).padStart(3,"0")+"°":"–");
+    const vr=live.baro_rate||0;set("h-vs",Math.abs(vr)<200?"±0":(vr>0?"+":"−")+Math.abs(Math.round(vr/100)*100));}
+  else hud.hidden=true;
+  const rr=G()&&G().round;
+  if(rr&&rr.me&&live&&live.lat!=null){const km=dist([rr.me.lat,rr.me.lon],[live.lat,live.lon])*1.852,dir=DIRS[Math.round(bearing([rr.me.lat,rr.me.lon],[live.lat,live.lon])/45)%8];
+    const altm=typeof live.alt_baro==="number"?Math.round(live.alt_baro*0.3048/100)*100:null;
+    set("rel",km<3?`Direkt über dir${altm?`, in ${altm.toLocaleString("de-DE")} m Höhe`:""}`:`${Math.round(km)} km im ${dir} von dir${altm?` · ${altm.toLocaleString("de-DE")} m hoch`:""}`);}
+  if(c&&live){
+    const vr=live.baro_rate||0;
+    set("alt",live.alt_baro==="ground"?"Boden":live.alt_baro.toLocaleString("de-DE")+" ft"+(vr>500?" ↗":vr<-500?" ↘":""));
+    set("gs",live.gs?Math.round(live.gs*1.852).toLocaleString("de-DE")+" km/h":"–");
+    set("el",dur(c.el));set("rem",c.remain>0?dur(c.remain):"gelandet");
+    set("dep",(G().round.depTime?"":"~")+fmtT(c.dep));set("arr","~"+fmtT(c.arr));
+    const dn=document.getElementById("done"),pl=document.getElementById("tpl");if(dn){dn.style.width=c.pct+"%";pl.style.left=c.pct+"%";}
+  }
+  const lv=document.getElementById("live");if(lastOk){const age=(Date.now()-lastOk)/1000;lv.classList.toggle("stale",age>40);
+    set("livetxt",age>40?`Signal weg · ${Math.max(1,Math.round(age/60))} min`:"Live");}
+}
+function dock(btns){const d=document.getElementById("dock"),i=document.getElementById("dockIn");i.innerHTML="";d.hidden=!btns.length;btns.forEach(b=>i.appendChild(b));}
+function btn(cls,txt,fn,dis){const b=$(`<button type="button" class="${cls}">${txt}</button>`);b.onclick=fn;b.onmousedown=e=>e.preventDefault();if(dis)b.disabled=true;return b;}
+function setStatus(t){set("status",t);}
+
+// Scroll-Position bleibt beim Neuzeichnen erhalten, solange der Bildschirm derselbe bleibt
+let confirmDel=false;
+const APP_VERSION="1.16";
+let lastView="";
+function render(){
+  const view=phase+"|"+(G()&&G().round?G().round.hex+(G().round.revealed?"r":""):"");
+  const keepY=view===lastView?window.scrollY:0;lastView=view;
+  const ae=document.activeElement;if(ae&&ae.blur&&ae!==document.body)ae.blur();
+  document.body.style.minHeight=document.body.scrollHeight+"px";
+  renderInner();
+  window.scrollTo(0,keepY);
+  // iOS verschiebt die Seite beim Schließen der Tastatur nachträglich – mehrfach zurücksetzen
+  if(keepY){const fix=()=>{if(lastView===view&&Math.abs(window.scrollY-keepY)>2)window.scrollTo(0,keepY);};
+    requestAnimationFrame(fix);[60,180,400,700].forEach(t=>setTimeout(fix,t));}
+  setTimeout(()=>{document.body.style.minHeight="";},750);
+}
+if("scrollRestoration" in history)history.scrollRestoration="manual";
+function renderInner(){
+  // Merken, wo die App verlassen wurde (Laden/Fehler sind nur Zwischenzustände)
+  if(["menu","setup","ach","rules","game","final"].includes(phase)&&S.view!==phase){S.view=phase;save();}
+  const root=document.getElementById("root"),below=document.getElementById("below");root.innerHTML="";below.innerHTML="";
+  if(phase==="ach"){showMap(false);renderAch(root);return;}
+  if(phase==="setup"){showMap(false);renderSetup(root);return;}
+  if(phase==="rules"){showMap(false);renderRules(root);return;}
+  if(phase==="menu"||!G()){showMap(false);renderMenu(root);return;}
+  renderHead(root);
+  if(phase==="loading"){showMap(false);
+    below.appendChild($(`<section class="panel wait"><div class="scope"></div><b id="status">Radar läuft …</b><span>Suche einen ${G().cat==="long"?"Langstreckenflug":G().cat==="short"?"Kurz- oder Mittelstreckenflug":"Linienflug"}, der gerade ${G().area==="near"?"in deiner Nähe fliegt":"in der Luft ist"}</span></section>`));
+    dock([btn("sec","Abbrechen",()=>{searchCtl.cancelled=true;phase=G().round?"game":"menu";render();})]);return;}
+  if(phase==="error"){showMap(false);
+    let title,text,showDiag=false;
+    if(netDown){title=navigator.onLine?"Verbindung zu schwach":"Keine Internetverbindung";
+      text=navigator.onLine?(autoTries&&autoTries<=3?"Die Live-Daten kamen nicht rechtzeitig an. Die App versucht es gleich automatisch noch einmal.":"Die Live-Daten kamen mehrfach nicht rechtzeitig an. Prüf dein Netz und tippe auf „Nochmal suchen“.")
+        :"Sobald du wieder Netz hast, sucht die App automatisch weiter.";}
+    else if(errMsg){title=G().area==="near"&&!G().me?"Kein Standort":"Kein Flug in der Nähe";text=errMsg;}
+    else{title="Kein passender Flug gefunden";text="Gerade passte kein Flug zu deinen Einstellungen. Versuch es nochmal. Wenn es wiederholt scheitert, schick Claude einen Screenshot der Details.";showDiag=true;}
+    const box=$(`<section class="panel problem"><b>${esc(title)}</b><span>${esc(text)}</span></section>`);
+    if(DIAG.length){const det=$(`<details class="det"><summary>Technische Details</summary><div class="diag">${esc(DIAG.join("\n"))}</div></details>`);if(showDiag)det.open=true;box.appendChild(det);}
+    below.appendChild(box);
+    dock([btn("sec","Menü",()=>{clearTimeout(autoRetry);phase="menu";render();}),btn("cta","Nochmal suchen",()=>{clearTimeout(autoRetry);autoTries=0;newRound();})]);return;}
+  if(phase==="final"){showMap(false);renderFinal(below);return;}
+  const r=G().round;if(!r){dock([btn("cta","Flug ziehen",newRound)]);return;}
+  if(r.revealed){renderVerdict(root,r);showMap(true);renderFlight(below,r);}
+  else{showMap(true);renderFlight(below,r);renderGuesses(below,r);}
+  tick();
+}
+const BACK=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>`;
+const CAT_SHORT={long:"Langstrecke",short:"Kurz & Mittel",all:"Alle Typen"};
+const RADAR=`<svg class="radar-bg" viewBox="0 0 230 230" aria-hidden="true"><defs><radialGradient id="rg" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="var(--signal)" stop-opacity=".10"/><stop offset="1" stop-color="var(--signal)" stop-opacity="0"/></radialGradient>
+<linearGradient id="sg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--signal)" stop-opacity="0"/><stop offset="1" stop-color="var(--signal)" stop-opacity=".22"/></linearGradient></defs>
+<circle cx="115" cy="115" r="112" fill="url(#rg)"/><g fill="none" stroke="var(--line-strong)"><circle cx="115" cy="115" r="38"/><circle cx="115" cy="115" r="75"/><circle cx="115" cy="115" r="112"/><path d="M115 3v224M3 115h224"/></g>
+<g class="sw"><path d="M115 115L115 3A112 112 0 0 1 212 59Z" fill="url(#sg)"/></g>
+<g fill="var(--signal)"><circle cx="160" cy="70" r="2.5"/><circle cx="70" cy="150" r="2"/><circle cx="150" cy="168" r="2"/></g></svg>`;
+function setupLine(){const st=S.setup;return `${CAT_SHORT[st.cat]} · ${st.area==="near"?"Über mir":"Weltweit"} · ${st.rounds?st.rounds+(st.rounds===1?" Runde":" Runden"):"Endlos"}`;}
+function renderMenu(root){
+  if(lastView&&!lastView.startsWith("menu"))confirmDel=false;
+  const g=S.game,got=ACH.filter(a=>S.ach[a.id]).length;
+  root.appendChild($(`<div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 24 24">${PLANE_PATH}</svg>Flugduell</div><div class="status"><i></i>Live</div></div>`));
+  root.appendChild($(`<div class="hero2">${RADAR}<h1>Erkenn den Jet, <em>bevor</em> er landet.</h1><p class="sub">Echte Linienflüge, live in der Luft. Airline, Route und Höhe stehen fest. Den Typ musst du erkennen.</p></div>`));
+  if(g&&g.round&&!g.finished){const sc=scores(),txt=g.mode==="solo"?`${sc.p1} Punkte · Runde ${g.history.length+(g.round.revealed?0:1)}`:`${g.players[0]} ${sc.p1} : ${sc.p2} ${g.players[1]}`;
+    const card=$(`<section class="panel rcard"></section>`);
+    if(!confirmDel){
+      // Letzte Runde schon aufgelöst, aber Ergebnis noch nicht angesehen: kein laufendes Spiel mehr
+      const over=isOver();
+      const b=$(`<button type="button" class="rmain"><div><b>${over?"Match beendet":"Spiel fortsetzen"}</b><div class="s">${esc(txt)}</div></div><span class="go">${over?"Ergebnis":"Weiter"} →</span></button>`);
+      b.onclick=over?()=>{g.finished=true;if(g.mode==="solo")achMatch();save();phase="final";render();showToasts();}:()=>{phase="game";render();if(!live)poll();};
+      const x=btn("rx",`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,()=>{confirmDel=true;render();});
+      x.setAttribute("aria-label","Spiel löschen");card.append(b,x);
+    }else{
+      card.classList.add("ask");
+      card.appendChild($(`<div class="rq"><b>Spiel löschen?</b><div class="s">Der Spielstand geht verloren. Abzeichen bleiben erhalten.</div></div>`));
+      const row=$(`<div class="rbtns"></div>`);
+      row.append(btn("rb","Abbrechen",()=>{confirmDel=false;render();}),btn("rb del","Löschen",()=>{confirmDel=false;S.game=null;live=null;save();render();}));
+      card.appendChild(row);
+    }
+    root.appendChild(card);}
+  const tiles=$(`<div class="tiles"></div>`);
+  [["solo","Singleplayer","Du gegen den Himmel. Mit Abzeichen.",'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/>'],
+   ["duo","1 vs 1","Ein Handy, zwei Tipps, ein Sieger.",'<circle cx="8.5" cy="8.5" r="3"/><circle cx="16" cy="9.5" r="2.6"/><path d="M2.5 20c.8-3.6 3.3-5.5 6-5.5s5.2 1.9 6 5.5M15 14.6c2.6 0 5 1.7 6.3 5.4"/>']].forEach(([k,t,d,ic])=>{
+    const b=$(`<button class="panel tile"><span class="tic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">${ic}</svg></span><span class="tt">${t}</span><span class="td">${d}</span></button>`);
+    b.onclick=()=>{S.setup.mode=k;save();phase="setup";render();window.scrollTo(0,0);};tiles.appendChild(b);});
+  root.appendChild(tiles);
+  root.appendChild($(`<div class="lastset">Zuletzt: ${esc(setupLine())}</div>`));
+  const foot=$(`<div class="foot"></div>`);
+  const fa=$(`<button class="flink"><span class="badge sm ${got?"on":""}">${BADGE}</span>Abzeichen <span class="num">${got}/${ACH.length}</span></button>`);fa.onclick=()=>{phase="ach";render();window.scrollTo(0,0);};
+  const fr=$(`<button class="flink"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>So geht's</button>`);fr.onclick=()=>{phase="rules";render();window.scrollTo(0,0);};
+  foot.append(fa,fr);root.appendChild(foot);
+  root.appendChild($(`<div class="lastset" style="margin-top:6px">Version ${APP_VERSION}</div>`));
+  dock([]);
+}
+function segRow(label,opts,cur,fn){
+  const w=$(`<div class="srow"><span class="cap">${label}</span></div>`),sg=$(`<div class="seg mini" style="grid-template-columns:repeat(${opts.length},1fr)"></div>`);
+  opts.forEach(([k,t])=>{const b=$(`<button aria-pressed="${cur===k}">${t}</button>`);b.onclick=()=>fn(k);sg.appendChild(b);});
+  w.appendChild(sg);return w;
+}
+function renderSetup(root){
+  const st=S.setup,duo=st.mode==="duo";
+  const bar=$(`<div class="bar"></div>`);bar.appendChild(btn("back",BACK+"Zurück",()=>{phase="menu";render();}));root.appendChild(bar);
+  root.appendChild($(`<div class="hero2"><span class="cap">${duo?"Lokal · 2 Spieler":"Allein"}</span><h1 style="margin-top:8px">${duo?"1 vs 1":"Singleplayer"}</h1></div>`));
+  if(duo){const nl=$(`<div class="panel list"></div>`);
+    [0,1].forEach(i=>{const row=$(`<label class="name-row" style="--c:${PCOL[i]}"><i></i><input id="nm${i}" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="Player ${i+1}" aria-label="Name Spieler ${i+1}"></label>`);
+      const inp=row.querySelector("input");inp.value=st.names[i]??`Player ${i+1}`;inp.oninput=()=>{st.names[i]=inp.value;save();};nl.appendChild(row);});
+    root.appendChild(nl);}
+  const box=$(`<section class="panel setbox"></section>`);
+  const re=k=>v=>{st[k]=v;save();render();};
+  box.appendChild(segRow("Flugzeuge",[["long","Lang"],["short","Kurz & Mittel"],["all","Alle"]],st.cat,re("cat")));
+  box.appendChild($(`<div class="hintline">${esc(CATS[st.cat].d)}</div>`));
+  box.appendChild(segRow("Gebiet",[["world","Weltweit"],["near","Über mir"]],st.area,re("area")));
+  if(st.area==="near")box.appendChild($(`<div class="hintline">Nutzt deinen Standort für Flüge in deiner Nähe</div>`));
+  // Runden: 5, 10, Endlos oder eigene Zahl (1–99)
+  const preset=[5,10,0].includes(st.rounds)&&!st.customRounds;
+  const rr=segRow("Runden",[[5,"5"],[10,"10"],[0,"Endlos"],["c",preset?"Eigene":String(st.rounds)]],preset?st.rounds:"c",v=>{
+    if(v==="c"){st.customRounds=true;if([5,10,0].includes(st.rounds))st.rounds=15;}else{st.customRounds=false;st.rounds=v;}
+    save();render();if(v==="c")setTimeout(()=>{const i=document.getElementById("rcount");i&&i.focus();i&&i.select();},30);});
+  box.appendChild(rr);
+  if(!preset){
+    const cw=$(`<div class="custom"><button type="button" class="stp" aria-label="Eine Runde weniger">−</button><input id="rcount" type="number" inputmode="numeric" min="1" max="99" aria-label="Anzahl Runden"><button type="button" class="stp" aria-label="Eine Runde mehr">+</button><span>Runden</span></div>`);
+    const inp=cw.querySelector("input");inp.value=st.rounds;
+    const setN=n=>{n=Math.max(1,Math.min(99,Math.round(n)||1));st.rounds=n;inp.value=n;save();const b=rr.querySelectorAll("button")[3];if(b)b.textContent=String(n);};
+    inp.oninput=()=>{const n=parseInt(inp.value,10);if(n>=1&&n<=99){st.rounds=n;save();const b=rr.querySelectorAll("button")[3];if(b)b.textContent=String(n);}};
+    inp.onblur=()=>setN(parseInt(inp.value,10));
+    const [m,p]=cw.querySelectorAll(".stp");m.onclick=()=>setN(st.rounds-1);p.onclick=()=>setN(st.rounds+1);
+    box.appendChild(cw);}
+  root.appendChild(box);
+  dock([btn("cta","Starten",()=>{startGame();})]);
+}
+function renderRules(root){
+  const bar=$(`<div class="bar"></div>`);bar.appendChild(btn("back",BACK+"Zurück",()=>{phase="menu";render();}));root.appendChild(bar);
+  root.appendChild($(`<div class="hero2"><span class="cap">Briefing</span><h1 style="margin-top:8px">So geht's</h1><p class="sub">Irgendwo auf der Welt ist gerade ein Flugzeug in der Luft. Du bekommst seine Daten und musst herausfinden, was für ein Jet es ist.</p></div>`));
+  const steps=[
+    ["1","Der Flug","Du siehst Airline, Flugnummer, Route, Höhe und Tempo, dazu die Position live auf der Karte. Alles echt, direkt vom Transponder des Flugzeugs."],
+    ["2","Dein Tipp","Tipp das Modell ein, z. B. A350, B787 oder B737. Das Modell reicht, die genaue Variante musst du nicht kennen. Zu schwer? „3 Typen zeigen“ macht eine Auswahl daraus, kostet aber Punkte."],
+    ["3","Die Auflösung","Der Transponder verrät, was wirklich fliegt. Dazu gibt es Kennzeichen, Variante und meist ein Foto genau dieser Maschine."]];
+  const st=$(`<section class="panel steps"></section>`);
+  steps.forEach(([n,t,d])=>st.appendChild($(`<div class="step"><span class="sn">${n}</span><div><b>${t}</b><p>${d}</p></div></div>`)));
+  root.appendChild(st);
+  root.appendChild($(`<div class="group"><div class="cap">Punkte</div><div class="panel rules"><b>+2</b><span>Modell per Freitext erkannt</span><b>+1</b><span>Modell aus drei Vorschlägen gewählt</span><b>+1</b><span>Bonus, wenn du im Freitext die genaue Variante triffst, z. B. A350-1000 oder B777-300ER</span></div></div>`));
+  root.appendChild($(`<div class="group"><div class="cap">Modi</div><div class="panel rules"><b>Solo</b><span>Spiel gegen dich selbst, jage Serien und schalte Abzeichen frei.</span><b>1 vs 1</b><span>Zwei Spieler, ein Handy. Beide tippen verdeckt, aufgelöst wird gemeinsam.</span><b>Über mir</b><span>Nur Flüge in deiner Nähe. Raus, hochschauen, raten.</span></div></div>`));
+  root.appendChild($(`<p class="fine" style="padding:0 6px;line-height:1.5">Im Spiel sind nur Passagierflüge mit Airbus- und Boeing-Jets. Fracht-, Privat- und Militärflüge sind ausgeschlossen. Live-Daten von adsb.lol, Routen von adsbdb, Fotos von Planespotters.net, Karten von Esri.</p>`));
+  dock([btn("cta","Klar, los geht's",()=>{phase="menu";render();})]);
+}
+function renderHead(root){
+  const g=G(),sc=scores(),solo=g.mode==="solo";
+  const bar=$(`<div class="gtop"></div>`);
+  bar.appendChild(btn("back",BACK+"Menü",()=>{phase="menu";render();}));
+  const rn=g.history.length+(g.round&&!g.round.revealed?1:0);
+  bar.appendChild($(`<span class="ttl">${g.rounds?`RUNDE ${Math.max(rn,1)} / ${g.rounds}`:`RUNDE ${rn||1}`}</span>`));
+  bar.appendChild($(`<span class="tag">${g.area==="near"?"Über mir":CAT_SHORT[g.cat]}</span>`));root.appendChild(bar);
+  const sbx=$(`<section class="panel sb"></section>`);
+  if(solo){const n=g.history.length,pct=n?Math.round(hits("p1")/n*100):null;
+    sbx.appendChild($(`<div class="sb-row"><div class="sb-p" style="--c:${PCOL[0]}"><span class="av">${esc((g.players[0][0]||"?").toUpperCase())}</span><div class="col"><span class="nm">${esc(g.players[0])}</span><span class="sc">${sc.p1}</span></div></div>
+      <span></span><div class="sb-p r" style="--c:${PCOL[0]}"><div class="col"><span class="nm">Treffer</span><span class="sc" style="font-size:22px">${pct==null?"–":pct+"%"}</span></div></div></div>`));
+    sbx.appendChild($(`<div class="sb-meta"><span>Serie ${streak()}</span><span>${hits("p1")} von ${n} erkannt</span></div>`));}
+  else sbx.appendChild($(`<div class="sb-row">
+      <div class="sb-p" style="--c:${PCOL[0]}"><span class="av">${esc((g.players[0][0]||"?").toUpperCase())}</span><div class="col"><span class="nm">${esc(g.players[0])}</span><span class="sc">${sc.p1}</span></div></div>
+      <span class="sb-vs">VS</span>
+      <div class="sb-p r" style="--c:${PCOL[1]}"><span class="av">${esc((g.players[1][0]||"?").toUpperCase())}</span><div class="col"><span class="nm">${esc(g.players[1])}</span><span class="sc">${sc.p2}</span></div></div></div>`));
+  if(g.rounds){const pr=$(`<div class="prog"></div>`);
+    for(let i=0;i<g.rounds;i++){const h=g.history[i];let c="";
+      if(h)c=solo?(h.guess.p1===h.answer?"y":"n"):"d";else if(i===g.history.length&&g.round&&!g.round.revealed)c="c";
+      pr.appendChild($(`<i class="${c}"></i>`));}
+    sbx.appendChild(pr);}
+  root.appendChild(sbx);
+}
+function renderFlight(below,r){
+  const km=Math.round(dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon])*1.852);
+  below.appendChild($(`<section class="panel flight">
+    <div class="fp-top"><span class="alb">${esc(r.al)}</span><div class="an2"><h2>${esc(AL[r.al][0])}</h2><span class="cs2">Flug ${esc(r.cs)}</span></div></div>
+    <div class="fp-route">
+      <div class="fp-ap"><span class="code">${esc(r.o.iata||r.o.icao)}</span><span class="city">${esc(r.o.location||"")}</span><span class="an">${esc(r.o.name||r.o.icao)}</span><span class="tl">Start</span><span class="tm" id="dep">–</span></div>
+      <div class="fp-mid"><div class="track"><div class="done" id="done"></div><svg id="tpl" viewBox="0 0 24 24" style="transform:rotate(90deg)">${PLANE_PATH}</svg></div><span class="km">${km.toLocaleString("de-DE")} km</span></div>
+      <div class="fp-ap to"><span class="code">${esc(r.d.iata||r.d.icao)}</span><span class="city">${esc(r.d.location||"")}</span><span class="an">${esc(r.d.name||r.d.icao)}</span><span class="tl">Ankunft</span><span class="tm" id="arr">–</span></div>
+    </div>
+    <div class="perf"></div>
+    <div class="data">
+      <div><span class="cap">Seit Start</span><span class="v" id="el">–</span></div>
+      <div><span class="cap">Bis Ziel</span><span class="v" id="rem">–</span></div>
+      <div><span class="cap">Höhe</span><span class="v" id="alt">–</span></div>
+      <div><span class="cap">Tempo</span><span class="v" id="gs">–</span></div>
+    </div>${r.me?`<div class="rel" id="rel">–</div>`:""}<span class="fine" id="tracenote" ${r.traceNote?"":"hidden"}>${esc(r.traceNote||"")}</span></section>`));
+}
+function renderGuesses(below,r){
+  const g=G(),solo=g.mode==="solo";
+  const gh=$(`<div class="ghead"><span class="cap">${solo?"Dein Tipp":"Eure Tipps"}</span></div>`);
+  const h=btn("pill",r.options?"Auswahl aktiv":"3 Typen zeigen",drawOptions,!!r.options);gh.appendChild(h);below.appendChild(gh);
+  const box=$(`<div class="guesses ${solo?"solo":""}"></div>`);
+  pids().forEach((pid,i)=>{
+    const el=$(`<section class="panel gc ${solo?"":"duo"}" style="--c:${PCOL[i]};--cs:${PSOFT[i]}"><div class="who"><i></i><span>${esc(g.players[i])}</span></div></section>`);
+    if(r.guess[pid]){el.appendChild($(`<div class="sealed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Tipp verdeckt</div>`));el.appendChild(btn("undo","Ändern",()=>unlock(pid)));}
+    else if(r.mode[pid]==="mc"&&r.options){for(const t of r.options)el.appendChild(btn("choice",disp(t),()=>pickOption(pid,t)));}
+    else{
+      const inp=$(`<input id="in-${pid}" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="Typ" aria-label="Tipp von ${esc(g.players[i])}">`);
+      inp.value=r.draft[pid]||"";inp.oninput=()=>{r.draft[pid]=inp.value;save();};inp.onkeydown=e=>{if(e.key==="Enter")lockText(pid)};
+      el.appendChild(inp);el.appendChild($(`<span class="err" id="err-${pid}" hidden></span>`));el.appendChild(btn("lock",solo?"Tipp prüfen":"Abgeben",()=>lockText(pid)));}
+    box.appendChild(el);});
+  below.appendChild(box);
+  const n=pids().filter(p=>r.guess[p]).length;
+  if(solo)dock([btn("sec","Überspringen",newRound)]);
+  else dock([btn("sec","Anderer Flug",newRound),btn("cta",n===2?"Auflösen":`Auflösen · ${n}/2 getippt`,reveal,n===0)]);
+}
+function renderVerdict(below,r){
+  const g=G(),h=g.history.at(-1),solo=g.mode==="solo";
+  const box=$(`<section class="panel verdict"><div class="vphoto" id="photo"></div></section>`);
+  const res=$(`<div class="res ${solo?"solo":""}"></div>`);
+  pids().forEach((pid,i)=>{const gu=h.guess[pid],ok=gu===h.answer,p=ptsOf(h,pid),raw=G().round.raw&&G().round.raw[pid];
+    const shown=gu?(h.mode[pid]==="mc"?disp(gu)+" · Auswahl":(raw||disp(gu))+(h.bonus&&h.bonus[pid]?" · Submodell":" · Freitext")):"kein Tipp";
+    res.appendChild($(`<div class="${ok?"ok":"bad"}"><span>${esc(g.players[i])}<small>${esc(shown)}</small></span><em>${p?"+"+p:"±0"}</em></div>`));});
+  box.appendChild(res);
+  box.appendChild($(`<span class="fine"><a href="https://www.flightradar24.com/${esc(r.cs)}" target="_blank" rel="noopener">Flug auf Flightradar24 öffnen</a></span>`));
+  below.appendChild(box);vOverlay=`<div class="ov"><div class="cap">Laut Transponder</div><div class="ty">${NAMES[h.answer]}</div><div class="sub">${esc(disp(SUB[r.type])||r.type)} · ${esc(r.reg||"Kennzeichen unbekannt")}</div></div>`;vCode=r.type;paintPhoto(r.hex);if(photoCache[r.hex]===undefined)loadPhoto(r);
+  if(isOver())dock([btn("cta","Ergebnis ansehen",()=>{G().finished=true;if(G().mode==="solo")achMatch();save();phase="final";render();showToasts();})]);
+  else dock([btn("cta","Nächster Flug",newRound)]);
+}
+function renderAch(root){
+  const got=ACH.filter(a=>S.ach[a.id]).length;
+  const bar=$(`<div class="bar"></div>`);bar.appendChild(btn("back",`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>Menü`,()=>{phase="menu";render();}));
+  bar.appendChild($(`<span class="tag">Singleplayer</span>`));root.appendChild(bar);
+  root.appendChild($(`<section class="panel achhead"><span class="cap">Abzeichen</span><h1>${got} von ${ACH.length}</h1><div class="meter"><i style="width:${got/ACH.length*100}%"></i></div><span class="fine" style="color:var(--muted)">${L_().rounds} ${L_().rounds===1?"Runde":"Runden"} gespielt · ${L_().hits} Treffer · beste Serie ${L_().best}</span></section>`));
+  let grp=null,box=null;
+  for(const a of ACH){
+    if(a.g!==grp){grp=a.g;const gw=$(`<div class="group"><div class="cap">${esc(grp)}</div></div>`);box=$(`<div class="panel"></div>`);gw.appendChild(box);root.appendChild(gw);}
+    const on=!!S.ach[a.id];
+    const right=on?new Date(S.ach[a.id]).toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"2-digit"}):(a.goal?`${Math.min(a.val(),a.goal)}/${a.goal}`:"offen");
+    box.appendChild($(`<div class="ach ${on?"on":"off"}"><span class="badge ${on?"on":""}">${BADGE}</span><div><div class="t">${esc(a.t)}</div><div class="d">${esc(a.d)}</div></div><span class="x">${right}</span></div>`));
+  }
+  dock([btn("cta","Zurück zum Menü",()=>{phase="menu";render();})]);
+}
+function renderFinal(below){
+  const g=G(),sc=scores(),ps=pids(),n=g.history.length;
+  let title,sub;
+  if(g.mode==="solo"){title=`${sc.p1} Punkte`;sub=`${hits("p1")} von ${n} Flugzeugen erkannt · ${CATS[g.cat].t}`;}
+  else{const d=sc.p1-sc.p2;title=d===0?"Unentschieden":`${esc(g.players[d>0?0:1])} gewinnt`;sub=`${sc.p1} : ${sc.p2} nach ${n} Runden · ${CATS[g.cat].t}`;}
+  below.appendChild($(`<section class="panel final"><span class="cap">Match beendet</span><h1>${title}</h1><p>${esc(sub)}</p></section>`));
+  const st=$(`<section class="panel stats" style="--n:${ps.length}"></section>`);
+  st.appendChild($(`<span class="h"></span>`));ps.forEach((p,i)=>st.appendChild($(`<span class="h n">${esc(g.players[i])}</span>`)));
+  const rows=[["Punkte",p=>sc[p],"tot"],["Treffer",p=>`${hits(p)}/${n}`],["davon Freitext",p=>g.history.filter(r=>r.guess[p]===r.answer&&r.mode[p]!=="mc").length],["Submodell-Bonus",p=>g.history.filter(r=>r.bonus&&r.bonus[p]).length]];
+  for(const [l,f,c] of rows){st.appendChild($(`<span class="${c||""}">${l}</span>`));ps.forEach(p=>st.appendChild($(`<span class="n ${c||""}">${f(p)}</span>`)));}
+  below.appendChild(st);
+  const rl=$(`<section class="panel rounds"></section>`);
+  g.history.forEach((r,k)=>{const pp=ps.map((p,i)=>`<span class="${r.guess[p]===r.answer?"y":"n"}">${esc(g.players[i].slice(0,1))} ${ptsOf(r,p)?"+"+ptsOf(r,p):"–"}</span>`).join("");
+    rl.appendChild($(`<div class="rd"><span class="i">${k+1}</span><span>${NAMES[r.answer]}<br><span class="rt">${esc(r.cs)}${r.o?" · "+esc(r.o)+"–"+esc(r.d):""}</span></span><span class="pp">${pp}</span></div>`));});
+  below.appendChild(rl);
+  if(g.mode==="solo"&&g.newAch&&g.newAch.length){const na=$(`<section class="panel newach"><span class="cap">Neue Abzeichen in diesem Match</span></section>`);
+    g.newAch.forEach(id=>{const a=ACH.find(x=>x.id===id);na.appendChild($(`<div class="row"><span class="badge on">${BADGE}</span><div><b style="font-weight:500">${esc(a.t)}</b><div class="fine" style="color:var(--muted)">${esc(a.d)}</div></div></div>`));});
+    below.insertBefore(na,below.children[1]);}
+  dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",()=>{S.setup.mode=g.mode;S.setup.cat=g.cat;S.setup.rounds=g.rounds;S.setup.customRounds=![5,10,0].includes(g.rounds);S.setup.area=g.area||"world";startGame();})]);
+}
+// ===================== ONLINE-DUELL =====================
+// Wird von online/build.py in eine Kopie der App eingesetzt (online.html). index.html bleibt unverändert.
+const WS_BASE="wss://flugduell-proxy.hendrik-bollinger.workers.dev/room/";
+const OKEY="flugduell-online-v1";
+const O={pid:null,name:"",code:null,ws:null,st:null,online:[],conn:"idle",retry:0,rt:null,creating:false,pending:null,
+  leaving:false,searching:false,showFinal:false,screen:"home",err:"",joinCode:"",newCat:"all",newRounds:10,copied:false};
+function oLoad(){try{const x=JSON.parse(localStorage.getItem(OKEY))||{};Object.assign(O,{pid:x.pid,name:x.name||"",code:x.code||null,newCat:x.newCat||"all",newRounds:x.newRounds??10});}catch(e){}
+  if(!O.pid)O.pid=Math.random().toString(36).slice(2,10).padEnd(8,"x");}
+function oSave(){try{localStorage.setItem(OKEY,JSON.stringify({pid:O.pid,name:O.name,code:O.code,newCat:O.newCat,newRounds:O.newRounds}));}catch(e){}}
+const CODE_CHARS="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const newCode=()=>Array.from({length:4},()=>CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)]).join("");
+const nameOf=seat=>{const p=O.st&&O.st.players.find(x=>x.seat===seat);return p?p.name:(seat==="p1"?"Player 1":"Player 2");};
+const otherSeat=()=>O.st&&O.st.me==="p1"?"p2":"p1";
+
+// ---------- Verbindung ----------
+function send(m){if(O.ws&&O.ws.readyState===1){O.ws.send(JSON.stringify(m));return true;}connect();return false;}
+function connect(){
+  if(!O.code)return;clearTimeout(O.rt);
+  if(O.ws&&(O.ws.readyState===0||O.ws.readyState===1))return;
+  let ws;try{ws=new WebSocket(WS_BASE+O.code);}catch(e){O.conn="closed";return;}
+  O.ws=ws;O.conn="connecting";O.leaving=false;
+  ws.onopen=()=>{if(O.ws!==ws)return;O.conn="open";O.retry=0;
+    ws.send(JSON.stringify({t:"hello",pid:O.pid,name:O.name,create:O.creating,code:O.code}));if(phase!=="menu")render();};
+  ws.onmessage=e=>{if(O.ws!==ws)return;let m;try{m=JSON.parse(e.data);}catch(x){return;}
+    if(m.t==="state"){
+      if(O.creating){O.creating=false;if(O.pending){ws.send(JSON.stringify({t:"settings",...O.pending}));O.pending=null;}}
+      O.st=m.s;O.online=m.online||[];O.err="";onState();}
+    else if(m.t==="error")onErr(m.err);};
+  ws.onclose=()=>{if(O.ws!==ws)return;O.ws=null;O.conn="closed";
+    if(O.code&&!O.leaving){O.retry=Math.min(O.retry+1,6);O.rt=setTimeout(connect,Math.min(800*2**O.retry,15000));if(phase!=="menu")render();}};
+}
+setInterval(()=>{if(O.ws&&O.ws.readyState===1)O.ws.send('{"t":"ping"}');},25000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&O.code&&(!O.ws||O.ws.readyState>1))connect();});
+window.addEventListener("online",()=>{if(O.code)connect();});
+function onErr(err){
+  if(err==="notfound"||err==="full"){O.err=err==="full"?"Der Raum ist schon voll. Zu zweit, nicht zu dritt.":"Raum nicht gefunden. Prüf den Code oder lass dir einen neuen Link schicken.";
+    O.leaving=true;try{O.ws&&O.ws.close(1000,"bye");}catch(e){}O.ws=null;O.code=null;O.st=null;S.game=null;O.screen="home";oSave();phase="menu";render();}
+}
+function leaveRoom(){send({t:"leave"});O.leaving=true;try{O.ws&&O.ws.close(1000,"bye");}catch(e){}O.ws=null;O.code=null;O.st=null;S.game=null;O.screen="home";O.showFinal=false;oSave();phase="menu";render();}
+
+// ---------- Serverzustand → Spielobjekt der App ----------
+function syncGame(){
+  const st=O.st;if(!st){S.game=null;return;}
+  const prev=S.game;
+  const g={mode:"duo",online:true,cat:st.settings.cat,area:"world",rounds:st.settings.rounds,players:[nameOf("p1"),nameOf("p2")],
+    history:st.history.map(h=>({...h})),round:null,finished:false};
+  if(st.round){const r=st.round,f=r.flight,keep=prev&&prev.round&&prev.round.hex===f.hex?prev.round:null;
+    const guess={},mode={},raw={};
+    for(const seat of ["p1","p2"]){const x=r.guesses[seat];guess[seat]=x?(x.hidden?"•":x.model):null;mode[seat]=r.mcFor.includes(seat)?"mc":"text";if(x&&x.raw)raw[seat]=x.raw;}
+    if(r.revealed&&st.history.length)Object.assign(raw,st.history.at(-1).raw||{});
+    g.round={...f,options:r.options,guess,mode,raw,draft:keep?keep.draft:{},revealed:r.revealed,
+      trail:keep?keep.trail:[[f.ac.lat,f.ac.lon,f.ac.alt_baro]],me:null,traceNote:""};
+    if(!keep&&f.ac&&f.ac.lat!=null){live=f.ac;lastOk=Date.now();}}
+  S.game=g;
+}
+function derivePhase(){
+  if(O.screen!=="room"||!O.code)return "menu";
+  if(!O.st)return "room";
+  const p=O.st.phase;
+  if(p==="lobby")return "room";
+  if(p==="search")return "loading";
+  if(p==="searchfail")return "error";
+  if(p==="reveal"&&O.st.over&&O.showFinal)return "final";
+  return "game";
+}
+function onState(){
+  if(O.st.phase==="lobby")O.showFinal=false;
+  const before=phase,beforeHex=S.game&&S.game.round?S.game.round.hex:null;
+  syncGame();
+  if(O.st.phase==="search"&&O.st.searcherIsMe&&!O.searching)doSearch();
+  const p=derivePhase();
+  // Tippt der Spieler gerade, nur Gegner-Karte und Leiste auffrischen, damit die Tastatur nicht zuklappt
+  const ae=document.activeElement,typing=ae&&ae.id&&ae.id.startsWith("in-");
+  if(typing&&p==="game"&&before==="game"&&S.game.round&&S.game.round.hex===beforeHex&&!S.game.round.revealed){paintOpponent();guessDock(S.game.round);return;}
+  phase=p;render();
+  if(phase==="game")poll();
+}
+
+// ---------- Flug suchen (nur der vom Server bestimmte Spieler) ----------
+async function doSearch(){
+  O.searching=true;searchCtl={cancelled:false};DIAG=[];
+  const recent=new Set((G()?G().history:[]).map(h=>h.hex));
+  let f=null;
+  for(let i=0;i<2&&!f;i++){try{f=await findFlight(recent,O.st.settings.cat,null);}catch(e){note("Fehler: "+e.message);}}
+  O.searching=false;
+  if(!O.st||O.st.phase!=="search"||!O.st.searcherIsMe)return;
+  if(!f){send({t:"fail",msg:netDown?"Die Verbindung war zu schwach, um Live-Daten zu laden.":"Gerade passte kein Flug zu euren Einstellungen."});return;}
+  const a=f.ac;
+  send({t:"found",flight:{hex:f.hex,cs:f.cs,al:f.al,type:f.type,model:TYPE[f.type],reg:f.reg,o:f.o,d:f.d,
+    ac:{lat:a.lat,lon:a.lon,alt_baro:a.alt_baro,gs:a.gs,track:a.track,baro_rate:a.baro_rate}}});
+}
+
+// ---------- Spielaktionen gehen an den Server ----------
+newRound=function(){send({t:"next"});};
+startGame=function(){O.showFinal=false;send({t:"rematch"});};
+reveal=function(){send({t:"reveal"});};
+unlock=function(pid){send({t:"unguess"});};
+pickOption=function(pid,t){send({t:"guess",model:t});};
+lockText=function(pid){
+  const inp=document.getElementById("in-"+pid),raw=inp?inp.value:"",m=normalize(raw);
+  if(!m){const e=document.getElementById("err-"+pid);if(e){e.textContent="Typ nicht erkannt. Beispiele: A330, B787, B77W";e.hidden=false;}return;}
+  if(inp)inp.blur();
+  send({t:"guess",model:m,raw:raw.trim(),exact:exactSub(raw,G().round.type)});
+};
+drawOptions=function(){
+  const r=G().round,model=TYPE[r.type],total=dist([r.o.lat,r.o.lon],[r.d.lat,r.d.lon]);
+  let pool=fleetIn(r.al,G().cat);if(pool.length<3)pool=AL[r.al][1];
+  const fleet=pool.filter(t=>t!==model),fits=t=>total>=RANGE[t][0]&&total<=RANGE[t][1],near=t=>Math.abs(RANGE[t][1]-total);
+  const others=[...fleet.filter(fits).sort(()=>Math.random()-.5),...fleet.filter(t=>!fits(t)).sort((a,b)=>near(a)-near(b))].slice(0,2);
+  send({t:"options",options:[model,...others].sort(()=>Math.random()-.5)});
+};
+
+// ---------- Darstellung ----------
+const _renderVerdict=renderVerdict;
+renderVerdict=function(below,r){
+  _renderVerdict(below,r);
+  if(isOver())dock([btn("cta","Ergebnis ansehen",()=>{O.showFinal=true;phase="final";render();})]);
+  else dock([btn("cta","Nächster Flug",newRound)]);
+};
+const _renderFinal=renderFinal;
+renderFinal=function(below){
+  _renderFinal(below);
+  dock([btn("sec","Menü",()=>{phase="menu";render();}),btn("cta","Revanche",startGame)]);
+};
+function oppCard(r){
+  const seat=otherSeat(),i=seat==="p1"?0:1,on=O.online.includes(seat),done=!!r.guess[seat];
+  const el=$(`<section class="panel gc" id="gc-${seat}" style="--c:${PCOL[i]};--cs:${PSOFT[i]}"><div class="who"><i></i><span>${esc(nameOf(seat))}</span></div></section>`);
+  el.appendChild(done?$(`<div class="sealed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Tipp abgegeben</div>`)
+    :$(`<div class="waiting"><span class="wd"></span><span class="wd"></span><span class="wd"></span><b>${on?"tippt noch …":"nicht verbunden"}</b></div>`));
+  return el;
+}
+function paintOpponent(){const r=G()&&G().round,old=document.getElementById("gc-"+otherSeat());if(r&&old)old.replaceWith(oppCard(r));}
+function guessDock(r){
+  const me=O.st.me,mine=!!r.guess[me],theirs=!!r.guess[otherSeat()],other=nameOf(otherSeat());
+  if(!mine)dock([btn("cta",theirs?`${esc(other)} hat getippt – du bist dran`:"Dein Tipp fehlt",null,true)]);
+  else dock([btn("sec","Ohne Tipp auflösen",reveal),btn("cta",`Warte auf ${esc(other)} …`,null,true)]);
+}
+function renderOGuesses(below,r){
+  const me=O.st.me,mi=me==="p1"?0:1;
+  const gh=$(`<div class="ghead"><span class="cap">Eure Tipps</span></div>`);
+  gh.appendChild(btn("pill",r.options?"Auswahl aktiv":"3 Typen zeigen",drawOptions,!!r.options));below.appendChild(gh);
+  const box=$(`<div class="guesses"></div>`);
+  const el=$(`<section class="panel gc" id="gc-${me}" style="--c:${PCOL[mi]};--cs:${PSOFT[mi]}"><div class="who"><i></i><span>${esc(nameOf(me))} (du)</span></div></section>`);
+  if(r.guess[me]){el.appendChild($(`<div class="sealed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>${esc(disp(r.guess[me]))}</div>`));el.appendChild(btn("undo","Ändern",()=>unlock(me)));}
+  else if(r.mode[me]==="mc"&&r.options){for(const t of r.options)el.appendChild(btn("choice",disp(t),()=>pickOption(me,t)));}
+  else{const inp=$(`<input id="in-${me}" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="Typ" aria-label="Dein Tipp">`);
+    inp.value=r.draft[me]||"";inp.oninput=()=>{r.draft[me]=inp.value;};inp.onkeydown=e=>{if(e.key==="Enter")lockText(me)};
+    el.appendChild(inp);el.appendChild($(`<span class="err" id="err-${me}" hidden></span>`));el.appendChild(btn("lock","Abgeben",()=>lockText(me)));}
+  const opp=oppCard(r);
+  if(me==="p1")box.append(el,opp);else box.append(opp,el);
+  below.appendChild(box);guessDock(r);
+}
+function connBanner(root){
+  if(O.code&&O.conn!=="open")root.appendChild($(`<div class="obanner"><span class="wd"></span>${O.conn==="connecting"&&O.retry===0?"Verbinde mit dem Raum …":"Verbindung unterbrochen – verbinde neu …"}</div>`));
+  else if(O.st&&O.st.players.length===2&&O.online.length<2&&phase!=="room")root.appendChild($(`<div class="obanner off">${esc(nameOf(otherSeat()))} ist gerade nicht verbunden</div>`));
+}
+renderInner=function(){
+  const root=document.getElementById("root"),below=document.getElementById("below");root.innerHTML="";below.innerHTML="";
+  if(phase==="menu"){O.screen="home";showMap(false);renderOHome(root);return;}
+  if(phase==="room"||!O.st||!G()){showMap(false);renderORoom(root);return;}
+  renderHead(root);
+  const back=root.querySelector(".back");if(back)back.onclick=()=>{phase="menu";render();};
+  connBanner(root);
+  if(phase==="loading"){showMap(false);
+    const mine=O.st.searcherIsMe;
+    below.appendChild($(`<section class="panel wait"><div class="scope"></div><b id="status">${mine?"Radar läuft …":esc(nameOf(O.st.searcherSeat))+" sucht einen Flug …"}</b><span>Gleich seht ihr beide denselben Live-Flug</span></section>`));
+    dock([]);return;}
+  if(phase==="error"){showMap(false);
+    const box=$(`<section class="panel problem"><b>Kein Flug gefunden</b><span>${esc(O.st.failMsg||"Gerade passte kein Flug.")} Einer von euch kann es einfach nochmal versuchen.</span></section>`);
+    if(DIAG.length){box.appendChild($(`<details class="det"><summary>Technische Details</summary><div class="diag">${esc(DIAG.join("\n"))}</div></details>`));}
+    below.appendChild(box);dock([btn("cta","Nochmal suchen",newRound)]);return;}
+  if(phase==="final"){showMap(false);renderFinal(below);return;}
+  const r=G().round;if(!r){dock([btn("cta","Flug ziehen",newRound)]);return;}
+  if(r.revealed){renderVerdict(root,r);showMap(true);renderFlight(below,r);}
+  else{showMap(true);renderFlight(below,r);renderOGuesses(below,r);}
+  tick();
+};
+function renderOHome(root){
+  root.appendChild($(`<div class="brand"><div class="logo"><svg width="18" height="18" viewBox="0 0 24 24">${PLANE_PATH}</svg>Flugduell</div><div class="status"><i></i>Online</div></div>`));
+  root.appendChild($(`<div class="hero2">${RADAR}<span class="cap" style="position:relative;z-index:1">Online-Duell · Beta</span><h1 style="margin-top:8px">Duell auf <em>Distanz</em>.</h1><p class="sub">Zwei Handys, derselbe Live-Flug. Ihr tippt verdeckt, aufgelöst wird bei beiden gleichzeitig.</p></div>`));
+  if(O.err)root.appendChild($(`<section class="panel problem" style="padding:14px 16px"><b>${esc(O.err)}</b></section>`));
+  if(O.code){const card=$(`<section class="panel rcard"></section>`);
+    const b=$(`<button type="button" class="rmain"><div><b>Raum ${esc(O.code)}</b><div class="s">${O.st&&O.st.players.length===2?esc(nameOf("p1"))+" vs "+esc(nameOf("p2")):"Warte auf Mitspieler"}</div></div><span class="go">Zurück →</span></button>`);
+    b.onclick=()=>{O.screen="room";O.err="";phase=derivePhase();render();connect();};
+    const x=btn("rx",`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,leaveRoom);x.setAttribute("aria-label","Raum verlassen");
+    card.append(b,x);root.appendChild(card);}
+  const ng=$(`<div class="group"><div class="cap">Dein Name</div></div>`),nl=$(`<div class="panel list"></div>`);
+  const nr=$(`<label class="name-row" style="--c:var(--p1)"><i></i><input id="oname" maxlength="16" autocomplete="off" autocapitalize="words" placeholder="Wie heißt du?" aria-label="Dein Name"></label>`);
+  const ni=nr.querySelector("input");ni.value=O.name;ni.oninput=()=>{O.name=ni.value.trim();oSave();if(O.code)send({t:"rename",name:O.name});};
+  nl.appendChild(nr);ng.appendChild(nl);root.appendChild(ng);
+  const cg=$(`<div class="group"><div class="cap">Neuen Raum erstellen</div></div>`),cb=$(`<section class="panel setbox"></section>`);
+  cb.appendChild(segRow("Flugzeuge",[["long","Lang"],["short","Kurz & Mittel"],["all","Alle"]],O.newCat,v=>{O.newCat=v;oSave();render();}));
+  cb.appendChild(segRow("Runden",[[5,"5"],[10,"10"],[15,"15"],[0,"Endlos"]],O.newRounds,v=>{O.newRounds=v;oSave();render();}));
+  const go=btn("obtn","Raum erstellen",()=>{if(!needName())return;O.code=newCode();O.creating=true;O.pending={cat:O.newCat,rounds:O.newRounds};
+    O.st=null;S.game=null;O.screen="room";O.err="";O.showFinal=false;oSave();try{O.ws&&O.ws.close(1000,"bye");}catch(e){}O.ws=null;connect();phase="room";render();});
+  cb.appendChild(go);cg.appendChild(cb);root.appendChild(cg);
+  const jg=$(`<div class="group"><div class="cap">Raum beitreten</div></div>`),jb=$(`<section class="panel ojoin"></section>`);
+  const ji=$(`<input id="ocode" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Raumcode">`);ji.value=O.joinCode;
+  ji.oninput=()=>{ji.value=ji.value.toUpperCase().replace(/[^A-Z0-9]/g,"");O.joinCode=ji.value;};
+  const jbtn=btn("obtn","Beitreten",()=>{if(!needName())return;const c=(O.joinCode||"").toUpperCase();if(!/^[A-Z0-9]{4}$/.test(c)){ji.focus();return;}
+    if(O.code&&O.code!==c)send({t:"leave"});O.code=c;O.creating=false;O.st=null;S.game=null;O.screen="room";O.err="";O.showFinal=false;oSave();try{O.ws&&O.ws.close(1000,"bye");}catch(e){}O.ws=null;connect();phase="room";render();});
+  jb.append(ji,jbtn);jg.appendChild(jb);root.appendChild(jg);
+  root.appendChild($(`<a class="lastset" href="./" style="text-decoration:none;margin-top:8px">← Zur Solo- & 1-vs-1-App</a>`));
+  dock([]);
+}
+function needName(){if(O.name)return true;const i=document.getElementById("oname");if(i){i.focus();i.closest(".panel").classList.add("shake");setTimeout(()=>i.closest(".panel").classList.remove("shake"),500);}return false;}
+function renderORoom(root){
+  const bar=$(`<div class="bar"></div>`);bar.appendChild(btn("back",BACK+"Zurück",()=>{phase="menu";render();}));
+  bar.appendChild($(`<span class="tag">Online-Raum</span>`));root.appendChild(bar);
+  connBanner(root);
+  const st=O.st;
+  root.appendChild($(`<div class="hero2"><span class="cap">Raumcode</span><div class="bigcode">${esc(O.code||"")}</div><p class="sub">Schick deinem Mitspieler den Link oder den Code. Er öffnet ihn, gibt seinen Namen ein und ist drin.</p></div>`));
+  const url=location.origin+location.pathname+"#"+O.code;
+  const sh=btn("obtn sec2",O.copied?"Link kopiert ✓":"Einladung teilen",async()=>{
+    const text=`Lass uns Flugduell spielen! Raum ${O.code}: ${url}`;
+    try{if(navigator.share){await navigator.share({title:"Flugduell",text:`Lass uns Flugduell spielen! Raum ${O.code}`,url});return;}}catch(e){if(e&&e.name==="AbortError")return;}
+    try{await navigator.clipboard.writeText(text);O.copied=true;render();setTimeout(()=>{O.copied=false;if(phase==="room")render();},2500);}catch(e){const u=document.getElementById("olink");if(u){const rg=document.createRange();rg.selectNodeContents(u);const sl=getSelection();sl.removeAllRanges();sl.addRange(rg);}}
+  });
+  root.appendChild(sh);
+  root.appendChild($(`<div class="lastset" id="olink" style="user-select:all;-webkit-user-select:all">${esc(url)}</div>`));
+  const pl=$(`<div class="group"><div class="cap">Spieler</div></div>`),pb=$(`<div class="panel list"></div>`);
+  ["p1","p2"].forEach((seat,i)=>{const p=st&&st.players.find(x=>x.seat===seat),on=O.online.includes(seat);
+    pb.appendChild($(`<div class="prow" style="--c:${PCOL[i]}"><span class="av">${p?esc((p.name[0]||"?").toUpperCase()):"?"}</span><div><b>${p?esc(p.name):"Noch frei"}</b>${p&&st.me===seat?" <span class='you'>du</span>":""}${p&&st.hostSeat===seat?" <span class='you'>Host</span>":""}<div class="s">${p?(on?"verbunden":"nicht verbunden"):"Warte auf Mitspieler …"}</div></div><span class="odot ${p&&on?"on":""}"></span></div>`));});
+  pl.appendChild(pb);root.appendChild(pl);
+  if(st){
+    const sg=$(`<div class="group"><div class="cap">Einstellungen</div></div>`),sb=$(`<section class="panel setbox"></section>`);
+    if(st.isHost){
+      sb.appendChild(segRow("Flugzeuge",[["long","Lang"],["short","Kurz & Mittel"],["all","Alle"]],st.settings.cat,v=>send({t:"settings",cat:v,rounds:st.settings.rounds})));
+      sb.appendChild(segRow("Runden",[[5,"5"],[10,"10"],[15,"15"],[0,"Endlos"]],[5,10,15,0].includes(st.settings.rounds)?st.settings.rounds:null,v=>send({t:"settings",cat:st.settings.cat,rounds:v})));
+    }else sb.appendChild($(`<div class="hintline" style="padding:14px 2px 2px">${esc(CAT_SHORT[st.settings.cat])} · ${st.settings.rounds?st.settings.rounds+" Runden":"Endlos"}<br>Die Einstellungen legt ${esc(nameOf(st.hostSeat))} fest.</div>`));
+    sg.appendChild(sb);root.appendChild(sg);}
+  const two=st&&st.players.length===2;
+  if(!st)dock([btn("cta","Verbinde …",null,true)]);
+  else if(st.isHost)dock([btn("cta",two?"Spiel starten":"Warte auf Mitspieler …",()=>send({t:"next"}),!two)]);
+  else dock([btn("cta",`Warte auf Start durch ${esc(nameOf(st.hostSeat))} …`,null,true)]);
+}
+
+// ---------- Start ----------
+oLoad();load();
+{const m=(location.hash||"").replace("#","").toUpperCase();
+  if(/^[A-Z0-9]{4}$/.test(m)){if(m===O.code){O.screen="room";}else{O.joinCode=m;}history.replaceState(null,"",location.pathname);}}
+if(O.code){O.screen="room";connect();}
+phase=derivePhase();
+render();
+
+</script>
+</body>
+</html>

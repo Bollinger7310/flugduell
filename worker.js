@@ -1,4 +1,7 @@
 // Cloudflare Worker: reicht Live-Flugdaten mit CORS-Freigabe an die Flugduell-App weiter
+// und stellt unter /room/<CODE> die Online-Spielräume bereit (eigener Bereich, berührt die Datenweiterleitung nicht).
+import { Room } from "./room.js";
+export { Room };
 const ALLOW = ["api.adsb.lol", "opendata.adsb.fi", "api.airplanes.live", "api.adsbdb.com", "globe.adsb.lol"];
 // Nur die eigene App darf die Weiterleitung nutzen
 const ORIGINS = ["https://bollinger7310.github.io"];
@@ -16,9 +19,16 @@ function ttlFor(url) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export default {
-  async fetch(req) {
+  async fetch(req, env) {
     const origin = req.headers.get("Origin") || "";
     if (!ORIGINS.includes(origin)) return new Response("forbidden", { status: 403 });
+    // Online-Spielraum (WebSocket)
+    const path = new URL(req.url).pathname;
+    if (path.startsWith("/room/")) {
+      const code = path.split("/")[2] || "";
+      if (!/^[A-Z0-9]{4,6}$/.test(code) || !env.ROOMS) return new Response("bad room", { status: 400 });
+      return env.ROOMS.get(env.ROOMS.idFromName(code)).fetch(req);
+    }
     const cors = { ...CORS, "Access-Control-Allow-Origin": origin };
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
     const raw = new URL(req.url).searchParams.get("url");

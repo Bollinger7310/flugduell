@@ -45,3 +45,10 @@ Ruhiger Instrumenten-Look, nicht „Arcade“: Haarlinien statt Schatten, eine S
 
 ## Ideen für später
 Profi-Schwierigkeit (Airline ausgeblendet), Lernkarte mit Erkennungsmerkmalen, gestufte Hinweise gegen Punktabzug, Statistik der Verwechslungen, Rundentimer, Online 1 vs 1, Flightradar24-API.
+
+## Online-Duell (Beta, getrennt von der Haupt-App)
+- Seite: https://bollinger7310.github.io/flugduell/online.html (Einladungslink: online.html#CODE)
+- `online.html` wird erzeugt mit `python3 online/build.py` aus `index.html` + `online/online-src.js` + `online/online.css`. Nach Änderungen an index.html neu bauen, damit Online dieselben Verbesserungen bekommt. index.html selbst wird dabei nie verändert.
+- Eigener Speicher (`flugduell-online-v1`, `flugduell-online-shell`), Solo-Spielstände und Abzeichen bleiben unberührt.
+- Server: `room-core.js` (Spiellogik, lokal testbar) + `room.js` (Cloudflare Durable Object „Room“, WebSockets mit Ruhemodus). Worker leitet nur `/room/<CODE>` dorthin, die Datenweiterleitung `?url=` ist unverändert. Räume werden nach 24 h ohne Aktivität gelöscht.
+- Ablauf: Host erstellt Raum (Flugzeuge, Runden), Gast tritt per Link/Code bei. Ein vom Server bestimmter Spieler sucht den Flug (gleiche Suche wie in der App) und meldet ihn; beide tippen verdeckt; Auflösung automatisch, sobald beide getippt haben (oder „Ohne Tipp auflösen“). Punkte wie lokal. Revanche führt in den Warteraum. Wiederverbinden automatisch.
