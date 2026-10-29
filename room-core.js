@@ -2,7 +2,7 @@
 // Ein Raum = zwei Spieler, die gleichzeitig denselben Live-Flug sehen und verdeckt tippen.
 
 const SEATS = ["p1", "p2"];
-const SEARCH_TIMEOUT = 60000; // nach 60 s darf ein anderer Spieler die Suche übernehmen
+const SEARCH_TIMEOUT = 25000; // nach 25 s darf der andere Spieler die Suche übernehmen
 
 export class RoomCore {
   constructor(s) { this.s = s || null; }
@@ -111,6 +111,14 @@ export class RoomCore {
       }
       default: return { err: "unknown" };
     }
+  }
+
+  // Verliert der Suchende die Verbindung, wird die Suche sofort freigegeben
+  searcherGone(onlinePids, now = Date.now()) {
+    const s = this.s; if (!s || s.phase !== "search" || !s.searcher || onlinePids.includes(s.searcher)) return false;
+    const p = s.players.find(x => x.pid === s.searcher);
+    s.phase = "searchfail"; s.failMsg = `${p ? p.name : "Dein Mitspieler"} hat die Verbindung verloren.`; s.searcher = null;
+    this.touch(now); return true;
   }
 
   reveal() {

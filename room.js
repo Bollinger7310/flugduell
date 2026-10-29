@@ -41,8 +41,14 @@ export class Room extends DurableObject {
     this.broadcast();
   }
 
-  async webSocketClose(ws) { try { ws.serializeAttachment({}); } catch {} this.broadcast(); }
-  async webSocketError(ws) { try { ws.serializeAttachment({}); } catch {} this.broadcast(); }
+  async webSocketClose(ws) { await this.gone(ws); }
+  async webSocketError(ws) { await this.gone(ws); }
+  async gone(ws) {
+    try { ws.serializeAttachment({}); } catch {}
+    const online = this.ctx.getWebSockets().filter(w => w !== ws).map(w => (w.deserializeAttachment() || {}).pid).filter(Boolean);
+    if (this.core.searcherGone(online, Date.now())) await this.ctx.storage.put("s", this.core.s);
+    this.broadcast();
+  }
 
   async alarm() {
     const s = this.core.s;

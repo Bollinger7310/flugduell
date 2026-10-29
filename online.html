@@ -1280,10 +1280,16 @@ function derivePhase(){
   if(p==="reveal"&&O.st.over&&O.showFinal)return "final";
   return "game";
 }
+const TAKEOVER=25000;
+// Wartet der andere auf eine Suche, zählt der Übernehmen-Knopf herunter
+setInterval(()=>{if(phase==="loading"&&O.st&&!O.st.searcherIsMe)render();},1000);
 function onState(){
+  if(O.st.phase==="search"){if(O.searchKey!==O.st.searchSince){O.searchKey=O.st.searchSince;O.searchSeen=Date.now();}}else O.searchKey=null;
   if(O.st.phase==="lobby")O.showFinal=false;
   const before=phase,beforeHex=S.game&&S.game.round?S.game.round.hex:null;
   syncGame();
+  // Hat der andere die Suche übernommen oder ist sie beendet, eigene Suche sofort stoppen
+  if(O.searching&&!(O.st.phase==="search"&&O.st.searcherIsMe)){if(searchCtl)searchCtl.cancelled=true;O.searching=false;}
   if(O.st.phase==="search"&&O.st.searcherIsMe&&!O.searching)doSearch();
   const p=derivePhase();
   // Tippt der Spieler gerade, nur Gegner-Karte und Leiste auffrischen, damit die Tastatur nicht zuklappt
@@ -1294,12 +1300,61 @@ function onState(){
 }
 
 // ---------- Flug suchen (nur der vom Server bestimmte Spieler) ----------
+// Schnelle Suche: je zwei Regionen parallel, kurze Zeitlimits, Routen zwischengespeichert, harte Obergrenze 40 s
+const SEARCH_LIMIT=40000,routeCache={};
+async function routeQuick(cs){
+  if(cs in routeCache)return routeCache[cs];
+  let r=null;
+  try{const d=await getJSON(viaProxy("https://api.adsbdb.com/v0/callsign/"+cs),6000);const f=d.response&&d.response.flightroute;
+    if(f){const m=a=>({icao:a.icao_code,iata:a.iata_code,name:a.name,location:a.municipality,lat:a.latitude,lon:a.longitude});r={callsign:cs,_airports:[m(f.origin),m(f.destination)]};}
+    routeCache[cs]=r;}catch(e){/* bei Netzfehler nicht merken */}
+  return r;
+}
+async function searchRegion(la,lo,cat,exclude,recent,deadline,ctl){
+  let data=null;
+  for(let i=0;i<2&&!data;i++){if(Date.now()>deadline||ctl.cancelled)return null;
+    try{const d=await getJSON(viaProxy(SRC.area(la,lo,250)),Math.min(i?9000:7000,Math.max(1500,deadline-Date.now())));data=d.ac||[];netFails=0;}
+    catch(e){note(`Region ${la},${lo}: ${errTxt(e)}`);if(!e.status)netFails++;else if(e.status!==429&&e.status<500)return null;}}
+  if(!data||ctl.cancelled)return null;
+  const cands=varietyPick(data.filter(a=>isCandidate(a,cat,12000)).filter(a=>!exclude.has(a.hex)),recent,null,6);
+  note(`Region ${la},${lo}: ${data.length} Flugzeuge, ${cands.length} Kandidaten`);
+  if(!cands.length)return null;
+  // Routen parallel prüfen, der erste passende Kandidat gewinnt
+  return await new Promise(res=>{let left=cands.length;
+    cands.forEach(async ac=>{let hit=null;
+      try{const cs=parseCs(ac).cs,rt=await routeQuick(cs);
+        if(rt){const leg=legFor(rt,[ac.lat,ac.lon]);
+          if(leg){const total=dist([leg.o.lat,leg.o.lon],[leg.d.lat,leg.d.lon]);
+            if(total>=150&&leg.dev<=Math.max(250,total*.25)&&dist([ac.lat,ac.lon],[leg.d.lat,leg.d.lon])>=120)
+              hit={hex:ac.hex,cs,al:parseCs(ac).al,type:ac.t,reg:ac.r||"",o:leg.o,d:leg.d,ac};}}}catch(e){}
+      if(hit){left=-99;res(hit);}else if(--left===0)res(null);});});
+}
+async function findFlightFast(exclude,cat,ctl){
+  const start=Date.now(),deadline=start+SEARCH_LIMIT,recent=(G()&&G().history||[]).slice(-6);
+  const pool=[...(cat==="long"?LONG_REGIONS:REGIONS)].sort(()=>Math.random()-.5);
+  netDown=false;netFails=0;
+  const timer=setInterval(()=>!ctl.cancelled&&setStatus(`Radar läuft … ${Math.round((Date.now()-start)/1000)} s`),1000);
+  try{
+    for(let i=0;i<pool.length&&Date.now()<deadline&&!ctl.cancelled;i+=2){
+      const wave=pool.slice(i,i+2).map(([la,lo])=>searchRegion(la,lo,cat,exclude,recent,deadline,ctl));
+      const found=await new Promise(res=>{let left=wave.length;wave.forEach(p=>p.then(f=>{if(f){left=-99;res(f);}else if(--left===0)res(null);}).catch(()=>{if(--left===0)res(null);}));});
+      if(found)return ctl.cancelled?null:found;
+      if(!navigator.onLine){netDown=true;return null;}
+    }
+  }finally{clearInterval(timer);}
+  if(netFails>0)netDown=true;
+  return null;
+}
 async function doSearch(){
-  O.searching=true;searchCtl={cancelled:false};DIAG=[];
-  const recent=new Set((G()?G().history:[]).map(h=>h.hex));
+  // Jede Suche hat ihren eigenen Abbruch-Schalter; eine ältere Suche kann nie mehr einen Flug melden
+  if(searchCtl)searchCtl.cancelled=true;
+  const ctl={cancelled:false};searchCtl=ctl;O.searching=true;DIAG=[];
+  const key=O.st.searchSince,recent=new Set((G()?G().history:[]).map(h=>h.hex));
   let f=null;
-  for(let i=0;i<2&&!f;i++){try{f=await findFlight(recent,O.st.settings.cat,null);}catch(e){note("Fehler: "+e.message);}}
+  try{f=await findFlightFast(recent,O.st.settings.cat,ctl);}catch(e){note("Fehler: "+e.message);}
+  if(ctl.cancelled)return;
   O.searching=false;
+  if(!O.st||O.st.searchSince!==key)return;
   if(!O.st||O.st.phase!=="search"||!O.st.searcherIsMe)return;
   if(!f){send({t:"fail",msg:netDown?"Die Verbindung war zu schwach, um Live-Daten zu laden.":"Gerade passte kein Flug zu euren Einstellungen."});return;}
   const a=f.ac;
@@ -1379,9 +1434,11 @@ renderInner=function(){
   const back=root.querySelector(".back");if(back)back.onclick=()=>{phase="menu";render();};
   connBanner(root);
   if(phase==="loading"){showMap(false);
-    const mine=O.st.searcherIsMe;
+    const mine=O.st.searcherIsMe,age=Date.now()-(O.searchSeen||Date.now());
     below.appendChild($(`<section class="panel wait"><div class="scope"></div><b id="status">${mine?"Radar läuft …":esc(nameOf(O.st.searcherSeat))+" sucht einen Flug …"}</b><span>Gleich seht ihr beide denselben Live-Flug</span></section>`));
-    dock([]);return;}
+    if(mine)dock([btn("sec","Suche abbrechen",()=>{if(searchCtl)searchCtl.cancelled=true;O.searching=false;send({t:"fail",msg:"Die Suche wurde abgebrochen."});})]);
+    else dock([btn("sec",age>=TAKEOVER?"Selbst suchen":`Selbst suchen (in ${Math.ceil((TAKEOVER-age)/1000)} s)`,()=>send({t:"next"}),age<TAKEOVER)]);
+    return;}
   if(phase==="error"){showMap(false);
     const box=$(`<section class="panel problem"><b>Kein Flug gefunden</b><span>${esc(O.st.failMsg||"Gerade passte kein Flug.")} Einer von euch kann es einfach nochmal versuchen.</span></section>`);
     if(DIAG.length){box.appendChild($(`<details class="det"><summary>Technische Details</summary><div class="diag">${esc(DIAG.join("\n"))}</div></details>`));}
