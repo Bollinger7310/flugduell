@@ -38,6 +38,7 @@ export class RoomCore {
       return this.touch(now);
     }
     const s = this.s; if (!s) return { err: "notfound" };
+    if (s.round && !s.round.opts) s.round.opts = {};   // Räume aus der Vorversion
     const seat = this.seatOf(pid); if (!seat) return { err: "notmember" };
     const isHost = s.host === pid;
 
@@ -64,7 +65,7 @@ export class RoomCore {
         if (s.phase !== "search" || s.searcher !== pid) return { err: "denied" };
         const f = m.flight || {};
         if (!f.hex || !f.cs || !f.type || !f.model || !f.o || !f.d) return { err: "bad" };
-        s.round = { n: s.history.length + 1, flight: f, options: null, mcFor: [], guesses: {}, revealed: false };
+        s.round = { n: s.history.length + 1, flight: f, opts: {}, guesses: {}, revealed: false };
         s.phase = "guess"; s.searcher = null;
         return this.touch(now);
       }
@@ -73,18 +74,18 @@ export class RoomCore {
         s.phase = "searchfail"; s.searcher = null; s.failMsg = String(m.msg || "").slice(0, 200);
         return this.touch(now);
       }
-      case "options": {  // „3 Typen zeigen“ gilt für alle, die noch nicht getippt haben
-        const r = s.round; if (s.phase !== "guess" || !r || r.options) return { changed: false };
+      case "options": {  // „3 Typen zeigen“ gilt nur für den Spieler, der sie anfordert
+        const r = s.round; if (s.phase !== "guess" || !r || r.opts[seat] || r.guesses[seat]) return { changed: false };
         const o = Array.isArray(m.options) ? m.options.map(String).slice(0, 3) : [];
-        if (o.length !== 3 || !o.includes(r.flight.model)) return { err: "bad" };
-        r.options = o; r.mcFor = SEATS.filter(st => !r.guesses[st]);
+        if (o.length !== 3 || new Set(o).size !== 3 || !o.includes(r.flight.model)) return { err: "bad" };
+        r.opts[seat] = o;
         return this.touch(now);
       }
       case "guess": {
         const r = s.round; if (s.phase !== "guess" || !r) return { err: "denied" };
         const model = String(m.model || ""); if (!model) return { err: "bad" };
-        const mode = r.mcFor.includes(seat) ? "mc" : "text";
-        if (mode === "mc" && !r.options.includes(model)) return { err: "bad" };
+        const mine = r.opts[seat], mode = mine ? "mc" : "text";
+        if (mode === "mc" && !mine.includes(model)) return { err: "bad" };
         r.guesses[seat] = { model, mode, raw: mode === "text" ? String(m.raw || "").slice(0, 24) : "", exact: mode === "text" && !!m.exact };
         if (s.players.every(p => r.guesses[p.seat])) this.reveal();
         return this.touch(now);
@@ -135,6 +136,8 @@ export class RoomCore {
     const out = JSON.parse(JSON.stringify(s));
     if (out.round && !out.round.revealed) {
       for (const st of Object.keys(out.round.guesses)) if (st !== me) out.round.guesses[st] = { hidden: true };
+      out.round.opts = out.round.opts || {};
+      for (const st of Object.keys(out.round.opts)) if (st !== me) delete out.round.opts[st];   // fremde Vorschläge bleiben unsichtbar
     }
     out.me = me; out.over = this.over();
     for (const p of out.players) delete p.pid;           // IDs der Mitspieler nicht herausgeben

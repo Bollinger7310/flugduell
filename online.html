@@ -1263,9 +1263,9 @@ function syncGame(){
     history:st.history.map(h=>({...h})),round:null,finished:false};
   if(st.round){const r=st.round,f=r.flight,keep=prev&&prev.round&&prev.round.hex===f.hex?prev.round:null;
     const guess={},mode={},raw={};
-    for(const seat of ["p1","p2"]){const x=r.guesses[seat];guess[seat]=x?(x.hidden?"•":x.model):null;mode[seat]=r.mcFor.includes(seat)?"mc":"text";if(x&&x.raw)raw[seat]=x.raw;}
+    for(const seat of ["p1","p2"]){const x=r.guesses[seat];guess[seat]=x?(x.hidden?"•":x.model):null;mode[seat]=r.opts&&r.opts[seat]?"mc":"text";if(x&&x.raw)raw[seat]=x.raw;}
     if(r.revealed&&st.history.length)Object.assign(raw,st.history.at(-1).raw||{});
-    g.round={...f,options:r.options,guess,mode,raw,draft:keep?keep.draft:{},revealed:r.revealed,
+    g.round={...f,options:(r.opts&&r.opts[O.st.me])||null,guess,mode,raw,draft:keep?keep.draft:{},revealed:r.revealed,
       trail:keep?keep.trail:[[f.ac.lat,f.ac.lon,f.ac.alt_baro]],me:null,traceNote:""};
     if(!keep&&f.ac&&f.ac.lat!=null){live=f.ac;lastOk=Date.now();}}
   S.game=g;
@@ -1355,7 +1355,7 @@ function guessDock(r){
 function renderOGuesses(below,r){
   const me=O.st.me,mi=me==="p1"?0:1;
   const gh=$(`<div class="ghead"><span class="cap">Eure Tipps</span></div>`);
-  gh.appendChild(btn("pill",r.options?"Auswahl aktiv":"3 Typen zeigen",drawOptions,!!r.options));below.appendChild(gh);
+  gh.appendChild(btn("pill",r.options?"Deine Auswahl aktiv":"3 Typen zeigen",drawOptions,!!r.options||!!r.guess[me]));below.appendChild(gh);
   const box=$(`<div class="guesses"></div>`);
   const el=$(`<section class="panel gc" id="gc-${me}" style="--c:${PCOL[mi]};--cs:${PSOFT[mi]}"><div class="who"><i></i><span>${esc(nameOf(me))} (du)</span></div></section>`);
   if(r.guess[me]){el.appendChild($(`<div class="sealed"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>${esc(disp(r.guess[me]))}</div>`));el.appendChild(btn("undo","Ändern",()=>unlock(me)));}
