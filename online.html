@@ -1217,14 +1217,14 @@ function renderFinal(below){
 }
 // ===================== ONLINE-DUELL =====================
 // Wird von online/build.py in eine Kopie der App eingesetzt (online.html). index.html bleibt unverändert.
-const ONLINE_VERSION="O-3";
+const ONLINE_VERSION="O-4";
 const WS_BASE="wss://flugduell-proxy.hendrik-bollinger.workers.dev/room/";
 const OKEY="flugduell-online-v1";
 const O={pid:null,name:"",code:null,ws:null,st:null,online:[],conn:"idle",retry:0,rt:null,creating:false,pending:null,
   leaving:false,searching:false,showFinal:false,screen:"home",err:"",joinCode:"",newCat:"all",newRounds:10,copied:false};
-function oLoad(){try{const x=JSON.parse(localStorage.getItem(OKEY))||{};Object.assign(O,{pid:x.pid,name:x.name||"",code:x.code||null,newCat:x.newCat||"all",newRounds:x.newRounds??10});}catch(e){}
+function oLoad(){try{const x=JSON.parse(localStorage.getItem(OKEY))||{};Object.assign(O,{pid:x.pid,name:x.name||"",code:x.code||null,newCat:x.newCat||"all",newRounds:x.newRounds??10,screen:x.screen==="home"?"home":"room"});}catch(e){}
   if(!O.pid)O.pid=Math.random().toString(36).slice(2,10).padEnd(8,"x");}
-function oSave(){try{localStorage.setItem(OKEY,JSON.stringify({pid:O.pid,name:O.name,code:O.code,newCat:O.newCat,newRounds:O.newRounds}));}catch(e){}}
+function oSave(){try{localStorage.setItem(OKEY,JSON.stringify({pid:O.pid,name:O.name,code:O.code,newCat:O.newCat,newRounds:O.newRounds,screen:O.screen}));}catch(e){}}
 const CODE_CHARS="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const newCode=()=>Array.from({length:4},()=>CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)]).join("");
 const nameOf=seat=>{const p=O.st&&O.st.players.find(x=>x.seat===seat);return p?p.name:(seat==="p1"?"Player 1":"Player 2");};
@@ -1429,7 +1429,8 @@ function connBanner(root){
 }
 renderInner=function(){
   const root=document.getElementById("root"),below=document.getElementById("below");root.innerHTML="";below.innerHTML="";
-  if(phase==="menu"){O.screen="home";showMap(false);renderOHome(root);return;}
+  if(phase==="menu"){if(O.screen!=="home"){O.screen="home";oSave();}showMap(false);renderOHome(root);return;}
+  if(O.screen!=="room"){O.screen="room";oSave();}
   if(phase==="room"||!O.st||!G()){showMap(false);renderORoom(root);return;}
   renderHead(root);
   const back=root.querySelector(".back");if(back)back.onclick=()=>{phase="menu";render();};
@@ -1456,7 +1457,7 @@ function renderOHome(root){
   if(O.err)root.appendChild($(`<section class="panel problem" style="padding:14px 16px"><b>${esc(O.err)}</b></section>`));
   if(O.code){const card=$(`<section class="panel rcard"></section>`);
     const b=$(`<button type="button" class="rmain"><div><b>Raum ${esc(O.code)}</b><div class="s">${O.st&&O.st.players.length===2?esc(nameOf("p1"))+" vs "+esc(nameOf("p2")):"Warte auf Mitspieler"}</div></div><span class="go">Zurück →</span></button>`);
-    b.onclick=()=>{O.screen="room";O.err="";phase=derivePhase();render();connect();};
+    b.onclick=()=>{O.screen="room";O.err="";oSave();phase=derivePhase();render();connect();};
     const x=btn("rx",`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,leaveRoom);x.setAttribute("aria-label","Raum verlassen");
     card.append(b,x);root.appendChild(card);}
   const ng=$(`<div class="group"><div class="cap">Dein Name</div></div>`),nl=$(`<div class="panel list"></div>`);
@@ -1514,8 +1515,8 @@ function renderORoom(root){
 // ---------- Start ----------
 oLoad();load();
 {const m=(location.hash||"").replace("#","").toUpperCase();
-  if(/^[A-Z0-9]{4}$/.test(m)){if(m===O.code){O.screen="room";}else{O.joinCode=m;}history.replaceState(null,"",location.pathname);}}
-if(O.code){O.screen="room";connect();}
+  if(/^[A-Z0-9]{4}$/.test(m)){if(m===O.code){O.screen="room";}else{O.joinCode=m;O.screen="home";}history.replaceState(null,"",location.pathname);}}
+if(O.code)connect();else O.screen="home";
 phase=derivePhase();
 render();
 
