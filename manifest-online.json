@@ -2,7 +2,7 @@
   "name": "Flugduell Online",
   "short_name": "Duell Online",
   "description": "Live-Flugzeugtyp-Quiz zu zweit über das Internet",
-  "start_url": "./online.html",
+  "start_url": "./#online",
   "display": "standalone",
   "background_color": "#080B0F",
   "theme_color": "#080B0F",
