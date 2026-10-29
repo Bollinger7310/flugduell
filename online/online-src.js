@@ -1,5 +1,6 @@
 // ===================== ONLINE-DUELL =====================
 // Wird von online/build.py in eine Kopie der App eingesetzt (online.html). index.html bleibt unverändert.
+const ONLINE_VERSION="O-3";
 const WS_BASE="wss://flugduell-proxy.hendrik-bollinger.workers.dev/room/";
 const OKEY="flugduell-online-v1";
 const O={pid:null,name:"",code:null,ws:null,st:null,online:[],conn:"idle",retry:0,rt:null,creating:false,pending:null,
@@ -218,7 +219,7 @@ renderInner=function(){
   connBanner(root);
   if(phase==="loading"){showMap(false);
     const mine=O.st.searcherIsMe,age=Date.now()-(O.searchSeen||Date.now());
-    below.appendChild($(`<section class="panel wait"><div class="scope"></div><b id="status">${mine?"Radar läuft …":esc(nameOf(O.st.searcherSeat))+" sucht einen Flug …"}</b><span>Gleich seht ihr beide denselben Live-Flug</span></section>`));
+    below.appendChild($(`<section class="panel wait"><div class="scope"></div><b id="status">${mine?"Radar läuft …":esc(nameOf(O.st.searcherSeat))+" sucht einen Flug …"}</b><span>${mine?"Lass die App bitte geöffnet, bis der Flug da ist.":"Gleich seht ihr beide denselben Live-Flug"}</span><span class="lastset">Online-Version ${ONLINE_VERSION}</span></section>`));
     if(mine)dock([btn("sec","Suche abbrechen",()=>{if(searchCtl)searchCtl.cancelled=true;O.searching=false;send({t:"fail",msg:"Die Suche wurde abgebrochen."});})]);
     else dock([btn("sec",age>=TAKEOVER?"Selbst suchen":`Selbst suchen (in ${Math.ceil((TAKEOVER-age)/1000)} s)`,()=>send({t:"next"}),age<TAKEOVER)]);
     return;}
@@ -258,6 +259,7 @@ function renderOHome(root){
     if(O.code&&O.code!==c)send({t:"leave"});O.code=c;O.creating=false;O.st=null;S.game=null;O.screen="room";O.err="";O.showFinal=false;oSave();try{O.ws&&O.ws.close(1000,"bye");}catch(e){}O.ws=null;connect();phase="room";render();});
   jb.append(ji,jbtn);jg.appendChild(jb);root.appendChild(jg);
   root.appendChild($(`<a class="lastset" href="./" style="text-decoration:none;margin-top:8px">← Zur Solo- & 1-vs-1-App</a>`));
+  root.appendChild($(`<div class="lastset">Online-Version ${ONLINE_VERSION}</div>`));
   dock([]);
 }
 function needName(){if(O.name)return true;const i=document.getElementById("oname");if(i){i.focus();i.closest(".panel").classList.add("shake");setTimeout(()=>i.closest(".panel").classList.remove("shake"),500);}return false;}
